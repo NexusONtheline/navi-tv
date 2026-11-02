@@ -70,6 +70,12 @@ public final class Herramientas {
                 .put("description", "Etiquetas que nunca deben salir, separadas por espacio"));
         p.put("segundos", new JSONObject().put("type", "integer").put("description", "Segundos por imagen"));
         p.put("ver_ahora", new JSONObject().put("type", "boolean").put("description", "Mostrarlo ya"));
+        d.put(funcion("recordar",
+                "Guarda algo que tu usuaria te contó y vale la pena recordar para siempre (gustos, nombres, planes, cosas importantes).",
+                props("dato", "string", "Lo que hay que recordar, en una frase corta"), "dato"));
+        d.put(funcion("olvidar",
+                "Borra un recuerdo que ya no es cierto o que te pidió olvidar.",
+                props("dato", "string", "El recuerdo a borrar (o parte de él)"), "dato"));
         d.put(funcion("salvapantallas",
                 "Cambia el salvapantallas de NAVI (imágenes de Safebooru). Solo cambia lo que se indique.",
                 sal, null));
@@ -85,6 +91,8 @@ public final class Herramientas {
                 case "clima": return clima(a.optString("ciudad"));
                 case "abrir_ajustes": return abrirAjustes(a.optString("seccion"));
                 case "salvapantallas": return salvapantallas(a);
+                case "recordar": return Memoria.recordar(ctx, a.optString("dato"));
+                case "olvidar": return Memoria.olvidar(ctx, a.optString("dato"));
                 default: return "Esa herramienta no existe.";
             }
         } catch (Exception e) {

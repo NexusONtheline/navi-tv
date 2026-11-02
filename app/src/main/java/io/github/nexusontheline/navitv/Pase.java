@@ -90,7 +90,7 @@ public final class Pase {
         aviso.setTextColor(0xFFC77DFF);
         aviso.setTextSize(16);
         aviso.setShadowLayer(6, 0, 0, Color.BLACK);
-        aviso.setText("conectando al Nexo…");
+        aviso.setText("conectando…");
         FrameLayout.LayoutParams lpAviso = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
         lpAviso.setMargins(margen, margen, margen, margen);
         raiz.addView(aviso, lpAviso);
@@ -155,7 +155,7 @@ public final class Pase {
             }
             try {
                 if (imagen == null) {
-                    avisar("Sin conexión al Nexo. Reintento en 30 s…");
+                    avisar("Sin internet. Reintento en 30 s…");
                     Thread.sleep(REINTENTO_MS);
                     continue;
                 }

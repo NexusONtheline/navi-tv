@@ -1,20 +1,21 @@
 package io.github.nexusontheline.navitv;
 
+import android.Manifest;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.service.voice.VoiceInteractionSession;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
-import android.service.voice.VoiceInteractionSession;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -22,11 +23,8 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,12 +42,14 @@ public class NaviSesion extends VoiceInteractionSession {
     private final Runnable irse = this::hide;
 
     private Carita carita;
-    private TextView globo;
     private SpeechRecognizer oido;
     private TextToSpeech voz;
     private boolean vozLista;
+    private boolean visible;
     private boolean pensando;
-    private float d;
+    private int reintentos;
+    /** Cada vez que se abre o cierra la sesión sube; así se ignoran respuestas de una vez anterior. */
+    private int vez;
 
     public NaviSesion(Context ctx) {
         super(ctx);
@@ -60,8 +60,7 @@ public class NaviSesion extends VoiceInteractionSession {
         super.onCreate();
         voz = new TextToSpeech(getContext(), ok -> {
             if (ok != TextToSpeech.SUCCESS) return;
-            voz.setLanguage(new Locale("es", "ES"));
-            voz.setPitch(1.15f);
+            Voz.configurar(voz, getContext());
             voz.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String id) { ui.post(() -> carita.setEstado(Carita.Estado.HABLANDO)); }
                 @Override public void onDone(String id) { ui.post(NaviSesion.this::terminoDeHablar); }
@@ -74,7 +73,7 @@ public class NaviSesion extends VoiceInteractionSession {
     @Override
     public View onCreateContentView() {
         Context ctx = getContext();
-        d = ctx.getResources().getDisplayMetrics().density;
+        float d = ctx.getResources().getDisplayMetrics().density;
 
         Window w = getWindow().getWindow();
         if (w != null) {
@@ -84,44 +83,24 @@ public class NaviSesion extends VoiceInteractionSession {
 
         FrameLayout raiz = new FrameLayout(ctx);
         raiz.setBackgroundColor(Color.TRANSPARENT);
-
-        LinearLayout esquina = new LinearLayout(ctx);
-        esquina.setOrientation(LinearLayout.VERTICAL);
-        esquina.setGravity(Gravity.END);
-
-        globo = new TextView(ctx);
-        globo.setTextColor(Color.WHITE);
-        globo.setTextSize(16);
-        globo.setLineSpacing(0, 1.15f);
-        globo.setMaxWidth(px(420));
-        globo.setPadding(px(14), px(9), px(14), px(9));
-        GradientDrawable fondo = new GradientDrawable();
-        fondo.setColor(0xEE18132A);
-        fondo.setCornerRadius(px(12));
-        fondo.setStroke(px(1), 0x99C77DFF);
-        globo.setBackground(fondo);
-        globo.setVisibility(View.GONE);
-        LinearLayout.LayoutParams lpGlobo = new LinearLayout.LayoutParams(-2, -2);
-        lpGlobo.bottomMargin = px(6);
-        lpGlobo.rightMargin = px(8);
-        esquina.addView(globo, lpGlobo);
-
         carita = new Carita(ctx);
-        esquina.addView(carita, new LinearLayout.LayoutParams(px(110), px(95)));
-
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-        lp.setMargins(px(24), px(24), px(36), px(20));
-        raiz.addView(esquina, lp);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                (int) (110 * d), (int) (95 * d), Gravity.BOTTOM | Gravity.END);
+        lp.setMargins(0, 0, (int) (36 * d), (int) (28 * d));
+        raiz.addView(carita, lp);
         return raiz;
     }
 
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
+        visible = true;
+        vez++;
+        pensando = false;
+        reintentos = 0;
         ui.removeCallbacks(irse);
-        globo.setVisibility(View.GONE);
         if (Conf.cargar(getContext()).geminiKey.isEmpty()) {
-            decirYIrse("Me falta la clave de Gemini. Ponla en la app NAVI.");
+            decirYIrse("Me falta la clave de Gemini. Ponla en la app NAVI, porfa.");
             return;
         }
         escuchar();
@@ -129,10 +108,12 @@ public class NaviSesion extends VoiceInteractionSession {
 
     @Override
     public void onHide() {
-        ui.removeCallbacks(irse);
+        visible = false;
+        vez++;
+        pensando = false;
+        ui.removeCallbacksAndMessages(null);
         if (oido != null) oido.cancel();
         if (voz != null) voz.stop();
-        pensando = false;
         super.onHide();
     }
 
@@ -147,7 +128,10 @@ public class NaviSesion extends VoiceInteractionSession {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (!pensando) escuchar();  // OK del control: volver a hablarle
+            if (!pensando) {  // OK del control: volver a hablarle
+                reintentos = 0;
+                escuchar();
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -158,22 +142,17 @@ public class NaviSesion extends VoiceInteractionSession {
     private void escuchar() {
         if (voz != null) voz.stop();
         ui.removeCallbacks(irse);
-        if (getContext().checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
-                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        if (getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
             decirYIrse("No tengo permiso para usar el micrófono. Abre la app NAVI una vez y acéptalo.");
             return;
         }
         carita.setEstado(Carita.Estado.ESCUCHANDO);
-        mostrar("…");
-        if (oido == null) {
-            oido = crearOido();
-        }
+        if (oido == null) oido = crearOido();
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-EC");
-        i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
-        oido.cancel();
         oido.startListening(i);
     }
 
@@ -186,41 +165,53 @@ public class NaviSesion extends VoiceInteractionSession {
             @Override public void onBufferReceived(byte[] b) {}
             @Override public void onEndOfSpeech() { carita.setEstado(Carita.Estado.PENSANDO); }
             @Override public void onEvent(int t, Bundle b) {}
-
-            @Override public void onPartialResults(Bundle b) {
-                String t = primera(b);
-                if (t != null && !t.isEmpty()) mostrar("«" + t + "»");
-            }
+            @Override public void onPartialResults(Bundle b) {}
 
             @Override public void onResults(Bundle b) {
-                String t = primera(b);
+                ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                String t = r == null || r.isEmpty() ? null : r.get(0);
+                Log.i(TAG, "oí: " + t);
+                if (!visible) return;
                 if (t == null || t.trim().isEmpty()) noTeEscuche();
                 else pensar(t);
             }
 
             @Override public void onError(int error) {
                 Log.w(TAG, "error del oído: " + error);
-                if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-                    decirYIrse("No tengo permiso para usar el micrófono.");
-                } else if (error == SpeechRecognizer.ERROR_NETWORK || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
-                    decirYIrse("No puedo conectar con el Nexo ahora mismo.");
-                } else {
-                    noTeEscuche();
+                if (!visible) return;
+                switch (error) {
+                    case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                        decirYIrse("No tengo permiso para usar el micrófono.");
+                        break;
+                    case SpeechRecognizer.ERROR_NETWORK:
+                    case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                    case SpeechRecognizer.ERROR_SERVER:
+                        decirYIrse("Uy, no tengo internet ahora mismo.");
+                        break;
+                    case SpeechRecognizer.ERROR_CLIENT:
+                    case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                        // El oído de Google aún no soltó la vez anterior: probar otra vez
+                        if (reintentos++ < 2) {
+                            if (oido != null) oido.destroy();
+                            oido = null;
+                            ui.postDelayed(NaviSesion.this::escuchar, 400);
+                        } else {
+                            noTeEscuche();
+                        }
+                        break;
+                    default:  // no habló nadie o no se entendió
+                        noTeEscuche();
                 }
             }
         });
         return s;
     }
 
-    private static String primera(Bundle b) {
-        ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        return r == null || r.isEmpty() ? null : r.get(0);
-    }
-
+    /** Sin globo de texto: la carita se queda quieta un momento y se va. */
     private void noTeEscuche() {
         carita.setEstado(Carita.Estado.REPOSO);
-        mostrar("No te escuché. Aprieta OK para intentarlo otra vez.");
-        ui.postDelayed(irse, 5000);
+        ui.removeCallbacks(irse);
+        ui.postDelayed(irse, 1800);
     }
 
     // ------------------------------------------------------------ cerebro y voz
@@ -228,7 +219,7 @@ public class NaviSesion extends VoiceInteractionSession {
     private void pensar(String texto) {
         pensando = true;
         carita.setEstado(Carita.Estado.PENSANDO);
-        mostrar("«" + texto + "»");
+        final int estaVez = vez;
         hilo.execute(() -> {
             String respuesta;
             try {
@@ -238,6 +229,7 @@ public class NaviSesion extends VoiceInteractionSession {
             }
             final String r = respuesta;
             ui.post(() -> {
+                if (estaVez != vez) return;  // la cerraste mientras pensaba
                 pensando = false;
                 decirYIrse(r);
             });
@@ -245,27 +237,18 @@ public class NaviSesion extends VoiceInteractionSession {
     }
 
     private void decirYIrse(String texto) {
-        mostrar(texto);
+        if (!visible) return;
         if (vozLista) {
             voz.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "navi");
         } else {
             carita.setEstado(Carita.Estado.REPOSO);
-            ui.postDelayed(irse, 4000 + texto.length() * 60L);
+            ui.postDelayed(irse, 3000);
         }
     }
 
     private void terminoDeHablar() {
         carita.setEstado(Carita.Estado.REPOSO);
         ui.removeCallbacks(irse);
-        ui.postDelayed(irse, 4000 + globo.getText().length() * 25L);
-    }
-
-    private void mostrar(String texto) {
-        globo.setText(texto);
-        globo.setVisibility(View.VISIBLE);
-    }
-
-    private int px(int dp) {
-        return (int) (dp * d);
+        ui.postDelayed(irse, 2500);  // un momento por si quieres seguir hablando (OK)
     }
 }

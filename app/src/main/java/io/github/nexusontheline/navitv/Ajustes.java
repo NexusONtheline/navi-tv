@@ -141,10 +141,34 @@ public class Ajustes extends Activity {
         if (in.hasExtra("modelo_reserva")) { c.modeloReserva = in.getStringExtra("modelo_reserva"); algo = true; }
         if (in.hasExtra("usuario")) { c.usuario = in.getStringExtra("usuario"); algo = true; }
         if (in.hasExtra("ciudad")) { c.ciudad = in.getStringExtra("ciudad"); algo = true; }
+        if (in.hasExtra("voz")) { c.voz = in.getStringExtra("voz"); algo = true; }
+        if (in.hasExtra("tono")) {
+            try { c.tono = Float.parseFloat(in.getStringExtra("tono")); algo = true; } catch (Exception ignored) {}
+        }
         if (algo) {
             c.guardar(this);
             Toast.makeText(this, "NAVI recibió su configuración ✓", Toast.LENGTH_LONG).show();
         }
+        if (in.hasExtra("probar_voz")) probarVoz(in.getStringExtra("probar_voz"));
+    }
+
+    private android.speech.tts.TextToSpeech prueba;
+
+    /** Dice una frase con la voz configurada, para elegir voz. */
+    private void probarVoz(String frase) {
+        if (prueba != null) prueba.shutdown();
+        prueba = new android.speech.tts.TextToSpeech(this, ok -> {
+            if (ok != android.speech.tts.TextToSpeech.SUCCESS) return;
+            Voz.configurar(prueba, this);
+            prueba.speak(frase == null || frase.isEmpty() ? "Hola, soy NAVI. ¿Te gusta cómo sueno?" : frase,
+                    android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "prueba");
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (prueba != null) prueba.shutdown();
+        super.onDestroy();
     }
 
     // --- piezas de la interfaz

@@ -19,6 +19,8 @@ public final class Conf {
     public String modeloReserva;
     public String usuario;
     public String ciudad;
+    public String voz;
+    public float tono;
 
     private Conf() {}
 
@@ -39,6 +41,8 @@ public final class Conf {
         c.modeloReserva = p.getString("modelo_reserva", "gemini-3.5-flash");
         c.usuario = p.getString("usuario", "");
         c.ciudad = p.getString("ciudad", "Guayaquil, Ecuador");
+        c.voz = p.getString("voz", "");
+        c.tono = p.getFloat("tono", 1.0f);
         return c;
     }
 
@@ -54,6 +58,8 @@ public final class Conf {
                 .putString("modelo_reserva", modeloReserva.trim())
                 .putString("usuario", usuario.trim())
                 .putString("ciudad", ciudad.trim())
+                .putString("voz", voz.trim())
+                .putFloat("tono", tono)
                 .apply();
     }
 }
