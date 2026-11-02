@@ -623,24 +623,41 @@ public class NaviSesion extends VoiceInteractionSession {
         final int estaVez = vez;
         escuchando = true;
         inicioEscucha = SystemClock.elapsedRealtime();
+        resuelto = false;
+        googleTermino = false;
+        propioTermino = false;
         oidoPropio.escuchar(new OidoPropio.Oyente() {
             @Override public void listo() {
                 ui.post(() -> {
                     if (estaVez != vez || !visible) return;
                     carita.setEstado(Carita.Estado.ESCUCHANDO);
                     bip();
+                    googleTambien(estaVez);  // el puente ya está: el reconocedor de Google se une
                 });
             }
             @Override public void termino(byte[] wav) {
                 ui.post(() -> {
+                    if (estaVez != vez || !visible || resuelto) return;
                     escuchando = false;
-                    if (estaVez == vez && visible) entender(wav);
+                    propioTermino = true;
+                    if (googleTermino) resolverConGemini(wav);
+                    else ui.postDelayed(() -> {  // darle a Google un momento más
+                        if (estaVez == vez && visible && !resuelto) resolverConGemini(wav);
+                    }, 2500);
                 });
             }
             @Override public void nada() {
                 ui.post(() -> {
+                    if (estaVez != vez || !visible || resuelto) return;
                     escuchando = false;
-                    if (estaVez == vez && visible) noTeEscuche();
+                    propioTermino = true;
+                    if (googleTermino) noTeEscuche();
+                    else ui.postDelayed(() -> {
+                        if (estaVez == vez && visible && !resuelto) {
+                            resuelto = true;
+                            noTeEscuche();
+                        }
+                    }, 2500);
                 });
             }
             @Override public void error(String que) {
@@ -651,6 +668,61 @@ public class NaviSesion extends VoiceInteractionSession {
                 });
             }
         });
+    }
+
+    // Las dos orejas a la vez: la grabación de NAVI (que hace que el control conecte su micro)
+    // y el reconocedor de Google (rápido y muy bueno en español). Gana el primero que entienda.
+    private boolean resuelto, googleTermino, propioTermino;
+
+    private void googleTambien(int estaVez) {
+        if (oido != null) oido.destroy();
+        oido = SpeechRecognizer.createSpeechRecognizer(getContext(), RECONOCEDOR_GOOGLE);
+        oido.setRecognitionListener(new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle b) {}
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float v) {}
+            @Override public void onBufferReceived(byte[] b) {}
+            @Override public void onEndOfSpeech() {
+                if (estaVez == vez && !resuelto) carita.setEstado(Carita.Estado.PENSANDO);
+            }
+            @Override public void onEvent(int t, Bundle b) {}
+            @Override public void onPartialResults(Bundle b) {}
+            @Override public void onResults(Bundle b) {
+                ArrayList<String> r = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                String t = r == null || r.isEmpty() ? "" : r.get(0).trim();
+                if (estaVez != vez || !visible || resuelto) return;
+                if (t.isEmpty()) {
+                    googleFallo();
+                    return;
+                }
+                resuelto = true;
+                escuchando = false;
+                oidoPropio.cancelar();
+                Log.i(TAG, "oí (Google, " + (SystemClock.elapsedRealtime() - inicioEscucha) + " ms): «" + t + "»");
+                pensar(t);
+            }
+            @Override public void onError(int error) {
+                Log.i(TAG, "Google no entendió (" + error + ")");
+                if (estaVez == vez && visible && !resuelto) googleFallo();
+            }
+        });
+        Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-EC");
+        i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
+        oido.startListening(i);
+    }
+
+    private void googleFallo() {
+        googleTermino = true;
+        // si la grabación de NAVI ya terminó, se resuelve en su callback (o en el plazo de espera)
+    }
+
+    private void resolverConGemini(byte[] wav) {
+        if (resuelto) return;
+        resuelto = true;
+        if (oido != null) oido.cancel();
+        entender(wav);
     }
 
     /** Gemini escucha el audio y luego NAVI piensa la respuesta. */
@@ -806,7 +878,9 @@ public class NaviSesion extends VoiceInteractionSession {
         hilo.execute(() -> {
             String respuesta;
             try {
-                respuesta = Cerebro.de(getContext()).responder(texto, pantalla, app, null);
+                // La foto de la pantalla solo si la pregunta parece ser sobre lo que se ve (es más lento)
+                Bitmap foto = sobreLaPantalla(texto) ? pantalla : null;
+                respuesta = Cerebro.de(getContext()).responder(texto, foto, app, null);
             } catch (Cerebro.Fallo f) {
                 respuesta = f.getMessage();
             }
@@ -818,6 +892,14 @@ public class NaviSesion extends VoiceInteractionSession {
                 decirYIrse(r);
             });
         });
+    }
+
+    private static final java.util.regex.Pattern SOBRE_PANTALLA = java.util.regex.Pattern.compile(
+            "(?iu)\\b(pantalla|esto|este|esta|eso|ese|esa|aqu[ií]|ah[ií]|quien|qui[eé]n|personaje|mira|ves|veo|"
+                    + "sale|salen|aparece|dibujo|imagen|video|serie|pel[ií]cula|juego|canci[oó]n|cantante|qu[eé] es)\\b");
+
+    static boolean sobreLaPantalla(String texto) {
+        return texto != null && SOBRE_PANTALLA.matcher(texto).find();
     }
 
     private void decirYIrse(String texto) {
