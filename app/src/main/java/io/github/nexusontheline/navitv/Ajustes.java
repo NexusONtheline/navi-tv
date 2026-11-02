@@ -91,7 +91,7 @@ public class Ajustes extends Activity {
         clave.setHintTextColor(GRIS);
         clave.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         col.addView(clave);
-        col.addView(texto("Modelo: " + conf.modelo + "  ·  ciudad: " + conf.ciudad, 13, GRIS));
+        col.addView(texto("Modelo: " + conf.modelo + (conf.ciudad.isEmpty() ? "" : "  ·  ciudad: " + conf.ciudad), 13, GRIS));
         proactiva = casilla("NAVI aparece sola: saluda al prender la tele y comenta lo que ve", conf.proactiva);
         col.addView(proactiva);
 
@@ -149,6 +149,8 @@ public class Ajustes extends Activity {
         if (in.hasExtra("usuario")) { c.usuario = in.getStringExtra("usuario"); algo = true; }
         if (in.hasExtra("ciudad")) { c.ciudad = in.getStringExtra("ciudad"); algo = true; }
         if (in.hasExtra("voz")) { c.voz = in.getStringExtra("voz"); algo = true; }
+        if (in.hasExtra("sobre_ti")) { c.sobreTi = in.getStringExtra("sobre_ti"); algo = true; }
+        if (in.hasExtra("sobre_tele")) { c.sobreTele = in.getStringExtra("sobre_tele"); algo = true; }
         if (in.hasExtra("widgets")) { c.widgets = !"false".equals(in.getStringExtra("widgets")); algo = true; }
         if (in.hasExtra("reloj")) { c.mostrarReloj = !"false".equals(in.getStringExtra("reloj")); algo = true; }
         if (in.hasExtra("tono")) {

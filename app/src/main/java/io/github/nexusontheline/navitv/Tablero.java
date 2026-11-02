@@ -212,7 +212,8 @@ final class Tablero {
             derAbajo.addView(grupo, lpGrupo);
         }
         if (conf.mostrarReloj) {
-            LinearLayout reloj = columna();
+            // Con widgets, el reloj también va en su tarjeta (si no, en imágenes claras no se lee)
+            LinearLayout reloj = conf.widgets ? tarjeta() : columna();
             reloj.setGravity(Gravity.END);
             TextClock hora = new TextClock(ctx);
             hora.setFormat24Hour("HH:mm");
@@ -274,6 +275,7 @@ final class Tablero {
             red.execute(() -> {
                 try {
                     if (Double.isNaN(lat)) {
+                        if (conf.ciudad.trim().isEmpty()) return;  // sin ciudad no hay clima
                         String nombre = conf.ciudad.replace("'", "").split(",")[0].trim();
                         JSONObject g = new JSONObject(Herramientas.get(
                                 "https://geocoding-api.open-meteo.com/v1/search?count=1&language=es&name="

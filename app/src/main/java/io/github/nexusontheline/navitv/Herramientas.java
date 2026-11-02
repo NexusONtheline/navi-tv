@@ -75,7 +75,7 @@ public final class Herramientas {
                 new JSONObject().put("type", "object").put("properties", new JSONObject()
                         .put("activar", new JSONObject().put("type", "boolean"))), "activar"));
         d.put(funcion("recordar",
-                "Guarda algo que tu usuaria te contó y vale la pena recordar para siempre (gustos, nombres, planes, cosas importantes).",
+                "Guarda algo que tu persona te contó y vale la pena recordar para siempre (gustos, nombres, planes, cosas importantes).",
                 props("dato", "string", "Lo que hay que recordar, en una frase corta"), "dato"));
         d.put(funcion("olvidar",
                 "Borra un recuerdo que ya no es cierto o que te pidió olvidar.",
@@ -174,6 +174,7 @@ public final class Herramientas {
 
     private String clima(String ciudad) throws Exception {
         if (ciudad == null || ciudad.trim().isEmpty()) ciudad = Conf.cargar(ctx).ciudad;
+        if (ciudad == null || ciudad.trim().isEmpty()) return "No sé en qué ciudad vives: pregúntaselo.";
         ciudad = ciudad.replace("'", "").replace("\"", "").trim();
         String nombre = ciudad.split(",")[0].trim();
         JSONObject geo = new JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?count=5&language=es&name="

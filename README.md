@@ -21,7 +21,7 @@ Puede:
 
 Usa tu propia clave gratis de Gemini. Se la puedes pasar desde la laptop con ADB:
 ```bash
-adb shell am start -n io.github.nexusontheline.navitv/.Ajustes --es gemini_key 'TU_CLAVE' --es ciudad 'Guayaquil, Ecuador'
+adb shell am start -n io.github.nexusontheline.navitv/.Ajustes --es gemini_key 'TU_CLAVE' --es ciudad 'Tu ciudad, País'
 ```
 o escribirla en **NAVI → Salvapantallas → Clave de Gemini**.
 

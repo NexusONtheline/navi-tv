@@ -22,6 +22,9 @@ public final class Conf {
     public String usuario;
     public String ciudad;
     public String voz;
+    /** Texto libre para NAVI: cómo es su persona («es una chica de...») y cómo es la tele. */
+    public String sobreTi;
+    public String sobreTele;
     public float tono;
     /** NAVI aparece sola (saludo al prender y comentarios al azar). */
     public boolean proactiva;
@@ -45,7 +48,9 @@ public final class Conf {
         c.modelo = p.getString("modelo", "gemini-3.5-flash-lite");
         c.modeloReserva = p.getString("modelo_reserva", "gemini-3.5-flash");
         c.usuario = p.getString("usuario", "");
-        c.ciudad = p.getString("ciudad", "Guayaquil, Ecuador");
+        c.ciudad = p.getString("ciudad", "");
+        c.sobreTi = p.getString("sobre_ti", "");
+        c.sobreTele = p.getString("sobre_tele", "");
         c.voz = p.getString("voz", "");
         c.tono = p.getFloat("tono", 1.0f);
         c.proactiva = p.getBoolean("proactiva", true);
@@ -66,6 +71,8 @@ public final class Conf {
                 .putString("usuario", usuario.trim())
                 .putString("ciudad", ciudad.trim())
                 .putString("voz", voz.trim())
+                .putString("sobre_ti", sobreTi.trim())
+                .putString("sobre_tele", sobreTele.trim())
                 .putFloat("tono", tono)
                 .putBoolean("proactiva", proactiva)
                 .apply();
