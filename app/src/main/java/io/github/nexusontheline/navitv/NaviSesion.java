@@ -68,6 +68,7 @@ public class NaviSesion extends VoiceInteractionSession {
             });
             vozLista = true;
         });
+        oido = crearOido();  // listo de antemano: cada milisegundo cuenta al apretar el micro
     }
 
     @Override
@@ -94,7 +95,6 @@ public class NaviSesion extends VoiceInteractionSession {
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
-        registrarArgumentos("", args);
         visible = true;
         vez++;
         pensando = false;
@@ -140,6 +140,7 @@ public class NaviSesion extends VoiceInteractionSession {
     public void onDestroy() {
         if (oido != null) oido.destroy();
         if (voz != null) voz.shutdown();
+        if (tono != null) tono.release();
         hilo.shutdownNow();
         super.onDestroy();
     }
@@ -166,7 +167,7 @@ public class NaviSesion extends VoiceInteractionSession {
             decirYIrse("No tengo permiso para usar el micrófono. Abre la app NAVI una vez y acéptalo.");
             return;
         }
-        carita.setEstado(Carita.Estado.ESCUCHANDO);
+        carita.setEstado(Carita.Estado.REPOSO);  // se pone rosa cuando ya escucha de verdad
         if (oido == null) oido = crearOido();
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -178,7 +179,12 @@ public class NaviSesion extends VoiceInteractionSession {
     private SpeechRecognizer crearOido() {
         SpeechRecognizer s = SpeechRecognizer.createSpeechRecognizer(getContext(), RECONOCEDOR_GOOGLE);
         s.setRecognitionListener(new RecognitionListener() {
-            @Override public void onReadyForSpeech(Bundle b) { Log.i(TAG, "escuchando"); }
+            @Override public void onReadyForSpeech(Bundle b) {
+                Log.i(TAG, "escuchando");
+                if (!visible) return;
+                carita.setEstado(Carita.Estado.ESCUCHANDO);
+                bip();
+            }
             @Override public void onBeginningOfSpeech() {}
             @Override public void onRmsChanged(float v) {}
             @Override public void onBufferReceived(byte[] b) {}
@@ -213,7 +219,7 @@ public class NaviSesion extends VoiceInteractionSession {
                         if (reintentos++ < 2) {
                             if (oido != null) oido.destroy();
                             oido = null;
-                            ui.postDelayed(NaviSesion.this::escuchar, 400);
+                            ui.postDelayed(NaviSesion.this::escuchar, 120);
                         } else {
                             noTeEscuche();
                         }
@@ -224,6 +230,18 @@ public class NaviSesion extends VoiceInteractionSession {
             }
         });
         return s;
+    }
+
+    private android.media.ToneGenerator tono;
+
+    /** Un bip suave: «ya te escucho, habla». */
+    private void bip() {
+        try {
+            if (tono == null) tono = new android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 35);
+            tono.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 120);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "sin bip", e);
+        }
     }
 
     /** Sin globo de texto: la carita se queda quieta un momento y se va. */
