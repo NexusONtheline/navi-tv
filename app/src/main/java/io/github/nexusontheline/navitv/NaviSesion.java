@@ -79,6 +79,14 @@ public class NaviSesion extends VoiceInteractionSession {
     private SpeechRecognizer oido;
     private TextToSpeech voz;
     private boolean vozLista;
+    /** Lo que había que decir mientras la voz aún se preparaba. */
+    private String pendiente;
+    private final Runnable sinVoz = () -> {
+        if (pendiente == null) return;  // ya habló
+        pendiente = null;
+        carita.setEstado(Carita.Estado.REPOSO);
+        ui.postDelayed(sola() ? this::salir : irse, 2000);
+    };
     private AudioFocusRequest foco;
     private android.media.ToneGenerator tono;
 
@@ -112,6 +120,15 @@ public class NaviSesion extends VoiceInteractionSession {
                 @Override public void onError(String id) { ui.post(NaviSesion.this::terminoDeHablar); }
             });
             vozLista = true;
+            ui.post(() -> {  // si ya tenía algo que decir, decirlo ahora
+                if (pendiente != null && visible) {
+                    String t = pendiente;
+                    pendiente = null;
+                    ui.removeCallbacks(sinVoz);
+                    pedirFoco();
+                    voz.speak(t, TextToSpeech.QUEUE_FLUSH, null, "navi");
+                }
+            });
         });
         oido = crearOido();  // listo de antemano: cada milisegundo cuenta al apretar el micro
     }
@@ -489,8 +506,10 @@ public class NaviSesion extends VoiceInteractionSession {
             pedirFoco();
             voz.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "navi");
         } else {
-            carita.setEstado(Carita.Estado.REPOSO);
-            ui.postDelayed(sola() ? this::salir : irse, 3000);
+            // La voz aún se está preparando (pasa justo después de arrancar): esperarla un poco
+            pendiente = texto;
+            ui.removeCallbacks(sinVoz);
+            ui.postDelayed(sinVoz, 12000);
         }
     }
 
