@@ -91,10 +91,10 @@ public class NaviSesion extends VoiceInteractionSession {
 
         globo = new TextView(ctx);
         globo.setTextColor(Color.WHITE);
-        globo.setTextSize(18);
+        globo.setTextSize(16);
         globo.setLineSpacing(0, 1.15f);
-        globo.setMaxWidth(px(520));
-        globo.setPadding(px(18), px(12), px(18), px(12));
+        globo.setMaxWidth(px(420));
+        globo.setPadding(px(14), px(9), px(14), px(9));
         GradientDrawable fondo = new GradientDrawable();
         fondo.setColor(0xEE18132A);
         fondo.setCornerRadius(px(12));
@@ -103,11 +103,11 @@ public class NaviSesion extends VoiceInteractionSession {
         globo.setVisibility(View.GONE);
         LinearLayout.LayoutParams lpGlobo = new LinearLayout.LayoutParams(-2, -2);
         lpGlobo.bottomMargin = px(6);
-        lpGlobo.rightMargin = px(40);
+        lpGlobo.rightMargin = px(8);
         esquina.addView(globo, lpGlobo);
 
         carita = new Carita(ctx);
-        esquina.addView(carita, new LinearLayout.LayoutParams(px(207), px(180)));
+        esquina.addView(carita, new LinearLayout.LayoutParams(px(110), px(95)));
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         lp.setMargins(px(24), px(24), px(36), px(20));
