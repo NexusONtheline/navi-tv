@@ -44,9 +44,15 @@ trap devolver EXIT
 "${A[@]}" ime set "$TECLADO" >/dev/null
 sleep 0.6
 
-b64="$(printf '%s' "$texto" | base64 -w0)"
-resultado="$("${A[@]}" am broadcast -a io.github.nexusontheline.navitv.ESCRIBIR \
-    --es b64 "$b64" --ez borrar "$borrar" --ez enter "$enter" | tr -d '\r')"
+extras=(--ez borrar "$borrar" --ez enter "$enter")
+# Un argumento vacío se pierde por el camino en adb shell: mandar el texto solo si hay
+[ -n "$texto" ] && extras+=(--es b64 "$(printf '%s' "$texto" | base64 -w0)")
+# El teclado tarda un poquito en conectarse al campo: reintentar unas veces
+for intento in 1 2 3 4 5 6; do
+    resultado="$("${A[@]}" am broadcast -a io.github.nexusontheline.navitv.ESCRIBIR "${extras[@]}" | tr -d '\r')"
+    echo "$resultado" | grep -q "result=7" && break
+    sleep 0.5
+done
 
 if echo "$resultado" | grep -q "result=7"; then
     echo "Escrito en la tele ✓"
