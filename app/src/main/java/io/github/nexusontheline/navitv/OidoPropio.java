@@ -92,6 +92,7 @@ final class OidoPropio {
         long inicio = SystemClock.elapsedRealtime();
         long ultimaApertura = inicio, desdeReal = 0;
         boolean real = false, voz = false;
+        double primerNivel = -1;  // el micro falso da SIEMPRE el mismo nivel (plano o un zumbido fijo)
         double ruido = 0, maximo = 0;
         int silencioMs = 0, trozosReales = 0;
         try {
@@ -112,7 +113,9 @@ final class OidoPropio {
                 double v = nivel(trozo, n);
 
                 if (!real) {
-                    if (v > 1) {  // ¡llegó audio de verdad!
+                    if (primerNivel < 0) primerNivel = v;
+                    boolean cambia = Math.abs(v - primerNivel) > Math.max(40, primerNivel * 0.04);
+                    if (cambia) {  // ¡llegó audio de verdad! (el falso nunca cambia)
                         real = true;
                         desdeReal = ahora;
                         Log.i(TAG, "puente conectado tras " + (ahora - inicio) + " ms y "

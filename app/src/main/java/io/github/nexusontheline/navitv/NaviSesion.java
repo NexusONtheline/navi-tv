@@ -442,7 +442,9 @@ public class NaviSesion extends VoiceInteractionSession {
                 cerrarLetra();
                 return;
             }
-            int i = cancion.indice(relojPos + 250);  // un pelín antes, como karaoke
+            // +250 ms para ir un pelín antes (karaoke) y +1800 ms por lo que tarda NAVI en notar
+            // la canción nueva (revisa cada 3 s y TizenTube avisa tarde); más el ajuste a mano.
+            int i = cancion.indice(relojPos + 250 + 1800 + cancion.ajusteMs);
             if (ahora - ultimoRegistro > 2000) {
                 ultimoRegistro = ahora;
                 Log.i(TAG, "letra: reloj=" + relojPos + " línea=" + i + "/" + cancion.lineas.size()

@@ -25,6 +25,8 @@ final class Letras {
         String clave, titulo, artista;
         /** Cuándo empezó a sonar (SystemClock.elapsedRealtime), para el reloj propio. */
         long detectada;
+        /** Corrección a mano («la letra va atrasada»), en ms: positivo = adelantar la letra. */
+        volatile long ajusteMs;
         final List<Long> tiempos = new ArrayList<>();
         final List<String> lineas = new ArrayList<>();
         List<String> traduccion;  // null = no hace falta (ya está en español)

@@ -70,10 +70,15 @@ public final class Herramientas {
                 .put("description", "Etiquetas que nunca deben salir, separadas por espacio"));
         p.put("segundos", new JSONObject().put("type", "integer").put("description", "Segundos por imagen"));
         p.put("ver_ahora", new JSONObject().put("type", "boolean").put("description", "Mostrarlo ya"));
+        JSONObject letrasParams = props("accion", "string", "quitar, poner, desactivar, activar, atrasada o adelantada");
+        letrasParams.getJSONObject("properties").put("segundos",
+                new JSONObject().put("type", "number").put("description", "Para atrasada/adelantada (por defecto 2)"));
         d.put(funcion("letras",
                 "Modo letra (karaoke abajo cuando suena una canción). quitar = esconder la letra de la "
-                        + "canción actual; poner = volver a mostrarla; desactivar = no mostrar letras nunca; activar = sí.",
-                props("accion", "string", "quitar, poner, desactivar o activar"), "accion"));
+                        + "canción actual; poner = volver a mostrarla; desactivar = no mostrar letras nunca; activar = sí; "
+                        + "atrasada = la letra va detrás de la música (la adelanto); adelantada = va antes (la atraso). "
+                        + "Para atrasada/adelantada puedes dar segundos (por defecto 2).",
+                letrasParams, "accion"));
         d.put(funcion("aparecer_sola",
                 "Activa o desactiva que NAVI aparezca sola en la pantalla a comentar lo que ve y a saludar al prender la tele.",
                 new JSONObject().put("type", "object").put("properties", new JSONObject()
@@ -102,7 +107,16 @@ public final class Herramientas {
                 case "letras": {
                     Conf c = Conf.cargar(ctx);
                     Letras.Cancion actual = NaviAsistente.cancionActual;
+                    double seg = a.optDouble("segundos", 2);
                     switch (a.optString("accion")) {
+                        case "atrasada":
+                        case "adelantada": {
+                            if (actual == null) return "Ahora no hay ninguna letra en pantalla.";
+                            long ms = Math.round(seg * 1000) * ("atrasada".equals(a.optString("accion")) ? 1 : -1);
+                            actual.ajusteMs += ms;
+                            return "Listo, moví la letra " + Math.abs(seg) + " segundos "
+                                    + (ms > 0 ? "hacia adelante." : "hacia atrás.");
+                        }
                         case "quitar":
                             NaviSesion.letraQuitada = actual != null ? actual.clave : "";
                             return actual != null ? "Listo, ya no muestro la letra de esta canción."
