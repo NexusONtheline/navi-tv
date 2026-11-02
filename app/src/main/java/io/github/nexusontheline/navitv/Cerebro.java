@@ -238,7 +238,7 @@ public final class Cerebro {
             }
             if (forzar) pedido += " Esta vez comenta sí o sí (comentar = true).";
             pedido += " Elige la reacción de tu carita y, si hay algo muy reconocible, un solo emoji "
-                    + "relacionado como objeto (por ejemplo una espada para Zelda o un hongo para Mario); "
+                    + "(el carácter emoji, nunca una palabra) relacionado como objeto (por ejemplo una espada para Zelda o un hongo para Mario); "
                     + "si no, objeto vacío.";
 
             JSONArray partes = new JSONArray().put(new JSONObject().put("text", pedido));
@@ -284,6 +284,8 @@ public final class Cerebro {
             o.frase = limpiar(j.optString("frase"));
             o.reaccion = j.optString("reaccion", "normal");
             o.objeto = j.optString("objeto", "").trim();
+            // Solo un emoji: si mandó una palabra («flor»), mejor nada
+            if (o.objeto.matches(".*\\p{L}.*") || o.objeto.length() > 8) o.objeto = "";
             if (o.frase.isEmpty()) o.comentar = false;
             Log.i(TAG, "observar -> " + j);
             if (o.comentar) recordarComentario(o.frase, saludo);
