@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'io.github.nexusontheline.navitv'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'io.github.nexusontheline.navitv'
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    // La firma vive fuera del repo: GitHub la recibe como secreto.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('NAVI_KEYSTORE') ?: 'navi.jks')
+            storePassword System.getenv('NAVI_KEYSTORE_PASS')
+            keyAlias 'navi'
+            keyPassword System.getenv('NAVI_KEYSTORE_PASS')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
