@@ -40,18 +40,19 @@ final class OidoPropio {
         void error(String que);
     }
 
-    private volatile boolean parar;
+    /** Cada grabación tiene su número: si empieza otra, la anterior se da cuenta y se calla. */
+    private volatile int turno;
     private Thread hilo;
 
-    void escuchar(Oyente o) {
+    synchronized void escuchar(Oyente o) {
         cancelar();
-        parar = false;
-        hilo = new Thread(() -> grabar(o), "navi-oido");
+        final int mio = ++turno;
+        hilo = new Thread(() -> grabar(o, mio), "navi-oido");
         hilo.start();
     }
 
-    void cancelar() {
-        parar = true;
+    synchronized void cancelar() {
+        turno++;
         if (hilo != null) hilo.interrupt();
         hilo = null;
     }
@@ -83,7 +84,7 @@ final class OidoPropio {
         return Math.sqrt(suma / n);
     }
 
-    private void grabar(Oyente o) {
+    private void grabar(Oyente o, int mio) {
         List<AudioRecord> grabaciones = new ArrayList<>();
         ByteArrayOutputStream pcm = new ByteArrayOutputStream();
         short[] trozo = new short[MUESTREO * TROZO_MS / 1000];
@@ -100,7 +101,7 @@ final class OidoPropio {
                 return;
             }
             grabaciones.add(ar);
-            while (!parar) {
+            while (mio == turno) {
                 AudioRecord actual = grabaciones.get(grabaciones.size() - 1);
                 // vaciar las grabaciones viejas para que no se atasquen
                 for (int i = 0; i < grabaciones.size() - 1; i++) grabaciones.get(i).read(trozo, 0, trozo.length,
@@ -116,7 +117,7 @@ final class OidoPropio {
                         desdeReal = ahora;
                         Log.i(TAG, "puente conectado tras " + (ahora - inicio) + " ms y "
                                 + grabaciones.size() + " grabación(es)");
-                        o.listo();
+                        if (mio == turno) o.listo();
                     } else {
                         if (ahora - ultimaApertura > SIN_PUENTE_MS && grabaciones.size() < MAX_GRABACIONES) {
                             AudioRecord otra = abrir();
@@ -163,7 +164,7 @@ final class OidoPropio {
         }
         Log.i(TAG, "fin: real=" + real + " voz=" + voz + " máximo=" + Math.round(maximo)
                 + " ruido=" + Math.round(ruido) + " duración=" + (SystemClock.elapsedRealtime() - inicio) + " ms");
-        if (parar) return;
+        if (mio != turno) return;  // la cancelaron o empezó otra: no avisar
         if (!voz) o.nada();
         else o.termino(wav(pcm.toByteArray()));
     }

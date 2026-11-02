@@ -341,8 +341,10 @@ public final class Cerebro {
             JSONArray partes = new JSONArray()
                     .put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "audio/wav")
                             .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))))
-                    .put(new JSONObject().put("text", "Transcribe literalmente lo que dice la persona en este "
-                            + "audio (en español). Responde solo con la transcripción, sin comillas ni comentarios. "
+                    .put(new JSONObject().put("text", "Esta persona le está hablando al asistente de su tele "
+                            + "(pregunta cosas como el clima, la hora, el día, o pide abrir apps, buscar videos o "
+                            + "cambiar el volumen). Transcribe literalmente lo que dice, en español. Responde solo "
+                            + "con la transcripción, sin comillas ni comentarios. "
                             + "Si es silencio, ruido o no se entiende, responde exactamente: (nada)"));
             JSONObject cuerpo = new JSONObject().put("contents",
                     new JSONArray().put(new JSONObject().put("role", "user").put("parts", partes)));

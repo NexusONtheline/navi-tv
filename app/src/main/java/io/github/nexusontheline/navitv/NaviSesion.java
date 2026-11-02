@@ -90,10 +90,12 @@ public class NaviSesion extends VoiceInteractionSession {
         ui.postDelayed(sola() ? this::salir : irse, 2000);
     };
     private AudioFocusRequest foco;
-    private android.media.ToneGenerator tono;
 
     private String modo = "";
     private boolean pensando;
+    /** Grabando tu voz ahora mismo (para no reiniciar si el sistema avisa dos veces). */
+    private boolean escuchando;
+    private long inicioEscucha;
     private boolean esperandoCaptura;
     private Bitmap captura;
     private String appActual;
@@ -187,6 +189,13 @@ public class NaviSesion extends VoiceInteractionSession {
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
+        // El sistema a veces avisa varias veces seguidas del mismo apretón: no reiniciar la escucha
+        String nuevoModo = args != null ? args.getString(MODO, "") : "";
+        if (nuevoModo.isEmpty() && escuchando && visible
+                && SystemClock.elapsedRealtime() - inicioEscucha < 2500) {
+            Log.i(TAG, "aviso repetido del micro: sigo escuchando");
+            return;
+        }
         visible = true;
         vez++;
         pensando = false;
@@ -255,6 +264,7 @@ public class NaviSesion extends VoiceInteractionSession {
         pararAnimaciones();
         if (oido != null) oido.cancel();
         oidoPropio.cancelar();
+        escuchando = false;
         if (voz != null) voz.stop();
         soltarFoco();
         super.onHide();
@@ -264,7 +274,6 @@ public class NaviSesion extends VoiceInteractionSession {
     public void onDestroy() {
         if (oido != null) oido.destroy();
         if (voz != null) voz.shutdown();
-        if (tono != null) tono.release();
         hilo.shutdownNow();
         super.onDestroy();
     }
@@ -398,6 +407,8 @@ public class NaviSesion extends VoiceInteractionSession {
         }
         carita.setEstado(Carita.Estado.REPOSO);  // se pone rosa cuando ya escucha de verdad
         final int estaVez = vez;
+        escuchando = true;
+        inicioEscucha = SystemClock.elapsedRealtime();
         oidoPropio.escuchar(new OidoPropio.Oyente() {
             @Override public void listo() {
                 ui.post(() -> {
@@ -408,17 +419,20 @@ public class NaviSesion extends VoiceInteractionSession {
             }
             @Override public void termino(byte[] wav) {
                 ui.post(() -> {
+                    escuchando = false;
                     if (estaVez == vez && visible) entender(wav);
                 });
             }
             @Override public void nada() {
                 ui.post(() -> {
+                    escuchando = false;
                     if (estaVez == vez && visible) noTeEscuche();
                 });
             }
             @Override public void error(String que) {
                 Log.w(TAG, "oído propio: " + que + " → uso el de Google");
                 ui.post(() -> {
+                    escuchando = false;
                     if (estaVez == vez && visible) escucharConGoogle();
                 });
             }
@@ -521,11 +535,41 @@ public class NaviSesion extends VoiceInteractionSession {
 
     /** Un bip suave: «ya te escucho, habla». */
     private void bip() {
+        new Thread(NaviSesion::campanita, "navi-bip").start();
+    }
+
+    /**
+     * «Ya te escucho»: dos notas suaves (~0,35 s). Va precedido de un poco de silencio
+     * para que los audífonos Bluetooth despierten y no se coman el sonido.
+     */
+    private static void campanita() {
+        int muestreo = 22050;
+        int silencio = muestreo * 25 / 100, nota = muestreo * 16 / 100;
+        short[] s = new short[silencio + nota * 2];
+        double[] frecuencias = {880, 1320};
+        for (int k = 0; k < 2; k++) {
+            for (int i = 0; i < nota; i++) {
+                double env = Math.sin(Math.PI * i / nota);  // sube y baja suave
+                s[silencio + k * nota + i] = (short) (Math.sin(2 * Math.PI * frecuencias[k] * i / muestreo) * env * 9000);
+            }
+        }
         try {
-            if (tono == null) tono = new android.media.ToneGenerator(AudioManager.STREAM_MUSIC, 35);
-            tono.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 120);
-        } catch (RuntimeException e) {
-            Log.w(TAG, "sin bip", e);
+            android.media.AudioTrack t = new android.media.AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                    .setAudioFormat(new android.media.AudioFormat.Builder()
+                            .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(muestreo)
+                            .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+                    .setBufferSizeInBytes(s.length * 2).build();
+            t.write(s, 0, s.length);
+            t.play();
+            Thread.sleep(s.length * 1000L / muestreo + 200);
+            t.release();
+        } catch (Exception e) {
+            Log.w(TAG, "sin campanita", e);
         }
     }
 
