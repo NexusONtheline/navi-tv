@@ -318,7 +318,7 @@ public class NaviSesion extends VoiceInteractionSession {
      * Reloj propio de la canción: TizenTube solo avisa la posición al empezar (ni al pausar),
      * así que NAVI la avanza solo mientras de verdad suena audio en la tele.
      */
-    private long relojPos = -1, relojUlt, ultimaActualizacionApp = -1;
+    private long relojPos = -1, relojUlt, ultimaActualizacionApp = -1, ultimoRegistro;
 
     private void crearBarraLetra(Context ctx, FrameLayout raiz) {
         barra = new LinearLayout(ctx);
@@ -435,6 +435,13 @@ public class NaviSesion extends VoiceInteractionSession {
                 return;
             }
             int i = cancion.indice(relojPos + 250);  // un pelín antes, como karaoke
+            if (ahora - ultimoRegistro > 2000) {
+                ultimoRegistro = ahora;
+                Log.i(TAG, "letra: reloj=" + relojPos + " línea=" + i + "/" + cancion.lineas.size()
+                        + " suena=" + suena + " app.pos=" + (ps != null ? ps.getPosition() : -1)
+                        + " app.act=" + act + " ahora=" + ahora
+                        + " primera=" + cancion.tiempos.get(0) + " última=" + cancion.tiempos.get(cancion.tiempos.size() - 1));
+            }
             if (i != indiceMostrado && i >= 0) {
                 indiceMostrado = i;
                 String actual = cancion.lineas.get(i);
@@ -454,6 +461,7 @@ public class NaviSesion extends VoiceInteractionSession {
 
     /** La franja baja y NAVI se apaga como tele vieja. */
     private void cerrarLetra() {
+        Log.i(TAG, "cierro la letra (reloj=" + relojPos + ")");
         naviBaile.setBailando(false);
         barra.animate().alpha(0f).translationY(px(40)).setDuration(500).withEndAction(this::hide).start();
     }
