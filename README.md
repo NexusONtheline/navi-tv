@@ -13,6 +13,8 @@
 - 🌌 **Salvapantallas con widgets:** ilustraciones al azar de Safebooru, clima, próximos episodios de anime, lo que está sonando, un gif, frases de anime y NAVI durmiendo con gorrito.
 - ⌨️ **Escribir en la tele desde la laptop**, sin sufrir con el control.
 
+🌐 **Web:** https://nexusontheline.github.io/navi-web/
+
 > ⚠️ **Beta.** Está en construcción y puede tener fallos. Probada en una Google TV con Android 14.
 
 ---
