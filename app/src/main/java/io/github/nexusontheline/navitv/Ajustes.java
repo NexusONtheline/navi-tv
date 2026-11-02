@@ -127,13 +127,14 @@ public class Ajustes extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        recibirDesdeLaptop(intent);
-        recreate();
+        setIntent(intent);
+        // Si solo era probar la voz, no recargar (cortaría la frase)
+        if (recibirDesdeLaptop(intent) && !intent.hasExtra("probar_voz")) recreate();
     }
 
     /** Desde la laptop: adb shell am start -n .../.Ajustes --es gemini_key ... --es ciudad ... */
-    private void recibirDesdeLaptop(Intent in) {
-        if (in == null || in.getExtras() == null) return;
+    private boolean recibirDesdeLaptop(Intent in) {
+        if (in == null || in.getExtras() == null) return false;
         Conf c = Conf.cargar(this);
         boolean algo = false;
         if (in.hasExtra("gemini_key")) { c.geminiKey = in.getStringExtra("gemini_key"); algo = true; }
@@ -150,6 +151,7 @@ public class Ajustes extends Activity {
             Toast.makeText(this, "NAVI recibió su configuración ✓", Toast.LENGTH_LONG).show();
         }
         if (in.hasExtra("probar_voz")) probarVoz(in.getStringExtra("probar_voz"));
+        return algo;
     }
 
     private android.speech.tts.TextToSpeech prueba;
