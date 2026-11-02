@@ -314,6 +314,11 @@ public class NaviSesion extends VoiceInteractionSession {
     private Letras.Cancion cancion;
     private int indiceMostrado = -2;
     private long sinSonarDesde;
+    /**
+     * Reloj propio de la canción: TizenTube solo avisa la posición al empezar (ni al pausar),
+     * así que NAVI la avanza solo mientras de verdad suena audio en la tele.
+     */
+    private long relojPos = -1, relojUlt, ultimaActualizacionApp = -1;
 
     private void crearBarraLetra(Context ctx, FrameLayout raiz) {
         barra = new LinearLayout(ctx);
@@ -367,6 +372,8 @@ public class NaviSesion extends VoiceInteractionSession {
         }
         indiceMostrado = -2;
         sinSonarDesde = 0;
+        relojPos = -1;
+        ultimaActualizacionApp = -1;
         lineaActual.setText("♪  " + cancion.titulo + " · " + cancion.artista);
         lineaTraduccion.setVisibility(View.GONE);
         lineaSiguiente.setText("");
@@ -407,8 +414,27 @@ public class NaviSesion extends VoiceInteractionSession {
                 return;
             }
             sinSonarDesde = 0;
-            naviBaile.setBailando(true);
-            int i = cancion.indice(Musica.posicion(mc) + 250);  // un pelín antes, como karaoke
+            long ahora = SystemClock.elapsedRealtime();
+            android.media.session.PlaybackState ps = mc.getPlaybackState();
+            long act = ps != null ? ps.getLastPositionUpdateTime() : 0;
+            if (relojPos < 0 || act != ultimaActualizacionApp) {  // la app mandó una posición nueva
+                relojPos = Musica.posicion(mc);
+                ultimaActualizacionApp = act;
+            } else {
+                android.media.AudioManager am = (android.media.AudioManager)
+                        getContext().getSystemService(Context.AUDIO_SERVICE);
+                if (am.isMusicActive()) relojPos += ahora - relojUlt;  // pausado: el reloj se detiene
+            }
+            relojUlt = ahora;
+            boolean suena = ((android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE)).isMusicActive();
+            naviBaile.setBailando(suena);
+            long fin = cancion.tiempos.get(cancion.tiempos.size() - 1) + 15_000;
+            if (relojPos > fin) {  // ya terminó la letra: no volver a abrirla para esta canción
+                letraQuitada = cancion.clave;
+                cerrarLetra();
+                return;
+            }
+            int i = cancion.indice(relojPos + 250);  // un pelín antes, como karaoke
             if (i != indiceMostrado && i >= 0) {
                 indiceMostrado = i;
                 String actual = cancion.lineas.get(i);
