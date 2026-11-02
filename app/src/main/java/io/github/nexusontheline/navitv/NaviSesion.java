@@ -67,7 +67,7 @@ public class NaviSesion extends VoiceInteractionSession {
     private final ExecutorService hilo = Executors.newSingleThreadExecutor();
     private final Random azar = new Random();
     private final Runnable irse = this::hide;
-    private final Runnable sinCaptura = () -> { if (esperandoCaptura) observarAhora(); };
+    private final Runnable sinCaptura = () -> { if (this.esperandoCaptura) observarAhora(); };
 
     private float d;
     private int anchoPantalla, altoPantalla;
