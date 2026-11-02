@@ -23,7 +23,7 @@ public class Ajustes extends Activity {
     private static final int MORADO = 0xFFC77DFF;
     private static final int GRIS = 0xFF8A7FA8;
 
-    private EditText etiquetas, nunca, segundos;
+    private EditText etiquetas, nunca, segundos, clave;
     private CheckBox horizontales, reloj;
     private float d;
 
@@ -31,6 +31,7 @@ public class Ajustes extends Activity {
     protected void onCreate(Bundle b) {
         super.onCreate(b);
         d = getResources().getDisplayMetrics().density;
+        recibirDesdeLaptop(getIntent());
         Conf conf = Conf.cargar(this);
 
         LinearLayout col = new LinearLayout(this);
@@ -80,6 +81,16 @@ public class Ajustes extends Activity {
         botones.addView(ver);
         col.addView(botones);
 
+        espacio(col, 28);
+        col.addView(texto("NAVI · asistente", 24, MORADO));
+        col.addView(texto("Clave de Gemini " + (conf.geminiKey.isEmpty() ? "(falta)" : "(configurada ✓)"), 16, Color.WHITE));
+        clave = campo("", false);
+        clave.setHint(conf.geminiKey.isEmpty() ? "Pega tu clave de aistudio.google.com/apikey" : "Escribe otra solo si quieres cambiarla");
+        clave.setHintTextColor(GRIS);
+        clave.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        col.addView(clave);
+        col.addView(texto("Modelo: " + conf.modelo + "  ·  ciudad: " + conf.ciudad, 13, GRIS));
+
         espacio(col, 16);
         col.addView(texto("Para ponerlo como salvapantallas: Ajustes de la tele → Sistema → Salvapantallas → «NAVI · Safebooru».", 13, GRIS));
 
@@ -102,7 +113,25 @@ public class Ajustes extends Activity {
         }
         c.soloHorizontales = horizontales.isChecked();
         c.mostrarReloj = reloj.isChecked();
+        String nueva = clave.getText().toString().trim();
+        if (!nueva.isEmpty()) c.geminiKey = nueva;
         c.guardar(this);
+    }
+
+    /** Desde la laptop: adb shell am start -n .../.Ajustes --es gemini_key ... --es ciudad ... */
+    private void recibirDesdeLaptop(Intent in) {
+        if (in == null || in.getExtras() == null) return;
+        Conf c = Conf.cargar(this);
+        boolean algo = false;
+        if (in.hasExtra("gemini_key")) { c.geminiKey = in.getStringExtra("gemini_key"); algo = true; }
+        if (in.hasExtra("modelo")) { c.modelo = in.getStringExtra("modelo"); algo = true; }
+        if (in.hasExtra("modelo_reserva")) { c.modeloReserva = in.getStringExtra("modelo_reserva"); algo = true; }
+        if (in.hasExtra("usuario")) { c.usuario = in.getStringExtra("usuario"); algo = true; }
+        if (in.hasExtra("ciudad")) { c.ciudad = in.getStringExtra("ciudad"); algo = true; }
+        if (algo) {
+            c.guardar(this);
+            Toast.makeText(this, "NAVI recibió su configuración ✓", Toast.LENGTH_LONG).show();
+        }
     }
 
     // --- piezas de la interfaz

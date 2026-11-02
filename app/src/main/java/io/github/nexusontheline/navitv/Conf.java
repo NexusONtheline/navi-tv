@@ -13,6 +13,13 @@ public final class Conf {
     public boolean soloHorizontales;
     public boolean mostrarReloj;
 
+    // NAVI (asistente)
+    public String geminiKey;
+    public String modelo;
+    public String modeloReserva;
+    public String usuario;
+    public String ciudad;
+
     private Conf() {}
 
     private static SharedPreferences prefs(Context ctx) {
@@ -27,6 +34,11 @@ public final class Conf {
         c.segundos = Math.max(5, p.getInt("segundos", 60));
         c.soloHorizontales = p.getBoolean("horizontales", true);
         c.mostrarReloj = p.getBoolean("reloj", true);
+        c.geminiKey = p.getString("gemini_key", "");
+        c.modelo = p.getString("modelo", "gemini-3.5-flash-lite");
+        c.modeloReserva = p.getString("modelo_reserva", "gemini-3.5-flash");
+        c.usuario = p.getString("usuario", "");
+        c.ciudad = p.getString("ciudad", "Guayaquil, Ecuador");
         return c;
     }
 
@@ -37,6 +49,11 @@ public final class Conf {
                 .putInt("segundos", Math.max(5, segundos))
                 .putBoolean("horizontales", soloHorizontales)
                 .putBoolean("reloj", mostrarReloj)
+                .putString("gemini_key", geminiKey.trim())
+                .putString("modelo", modelo.trim())
+                .putString("modelo_reserva", modeloReserva.trim())
+                .putString("usuario", usuario.trim())
+                .putString("ciudad", ciudad.trim())
                 .apply();
     }
 }

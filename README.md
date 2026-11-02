@@ -4,7 +4,28 @@
 
 La parte de [NAVI](https://github.com/NexusONtheline/navi) que vive en la tele (Android TV / Google TV).
 
-**AVISO:** está en construcción. Por ahora solo trae el salvapantallas.
+**AVISO:** está en construcción.
+
+## 🎙️ NAVI
+
+Abre la app **NAVI** y te escucha directo con el micrófono del control. También le puedes escribir. Te responde con voz y en pantalla, con la misma personalidad que la NAVI de la laptop.
+
+Puede:
+- abrir apps («abre Netflix»)
+- buscar en YouTube con TizenTube («pon videos de Lain»)
+- cambiar el volumen
+- decirte el clima (Open-Meteo)
+- abrir ajustes de la tele (wifi, bluetooth, pantalla…)
+- cambiar el salvapantallas («quiero paisajes en el salvapantallas»)
+- explicarte paso a paso cómo hacer cosas en la tele
+
+Usa tu propia clave gratis de Gemini. Se la puedes pasar desde la laptop con ADB:
+```bash
+adb shell am start -n io.github.nexusontheline.navitv/.Ajustes --es gemini_key 'TU_CLAVE' --es ciudad 'Guayaquil, Ecuador'
+```
+o escribirla en **NAVI → Salvapantallas → Clave de Gemini**.
+
+**Truco:** con Button Mapper puedes hacer que una pulsación larga de un botón del control abra NAVI.
 
 ## 🌌 Salvapantallas
 
