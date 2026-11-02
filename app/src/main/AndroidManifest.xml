@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -26,7 +27,11 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <package android:name="io.gh.reisxd.tizentube.cobalt" />
+        <package android:name="com.google.android.katniss" />
     </queries>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
@@ -37,12 +42,11 @@
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:allowBackup="false">
 
-        <!-- NAVI: aparece en Projectivy / lista de apps -->
+        <!-- Ajustes del salvapantallas (y la clave de Gemini) -->
         <activity
-            android:name=".Navi"
+            android:name=".Ajustes"
             android:exported="true"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -50,11 +54,30 @@
             </intent-filter>
         </activity>
 
-        <!-- Ajustes del salvapantallas (y la clave de Gemini) -->
-        <activity
-            android:name=".Ajustes"
+        <!-- NAVI como asistente: el botón del micro abre la carita en la esquina -->
+        <service
+            android:name=".NaviAsistente"
             android:exported="true"
-            android:windowSoftInputMode="adjustPan" />
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/asistente" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".NaviSesionServicio"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service
+            android:name=".NaviReconocedor"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
 
         <!-- Para probar el salvapantallas sin esperar a que la tele se aburra -->
         <activity

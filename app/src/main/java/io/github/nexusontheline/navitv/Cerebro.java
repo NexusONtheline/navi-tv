@@ -64,7 +64,15 @@ public final class Cerebro {
         Saturado(String m) { super(m); }
     }
 
-    public Cerebro(Context ctx) {
+    private static Cerebro unico;
+
+    /** Un solo cerebro para toda la app: así recuerda la charla entre una pulsación y otra. */
+    public static synchronized Cerebro de(Context ctx) {
+        if (unico == null) unico = new Cerebro(ctx);
+        return unico;
+    }
+
+    private Cerebro(Context ctx) {
         this.ctx = ctx.getApplicationContext();
         this.herramientas = new Herramientas(ctx);
     }
