@@ -24,7 +24,7 @@ public class Ajustes extends Activity {
     private static final int GRIS = 0xFF8A7FA8;
 
     private EditText etiquetas, nunca, segundos, clave;
-    private CheckBox horizontales, reloj;
+    private CheckBox horizontales, reloj, proactiva;
     private float d;
 
     @Override
@@ -90,6 +90,8 @@ public class Ajustes extends Activity {
         clave.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         col.addView(clave);
         col.addView(texto("Modelo: " + conf.modelo + "  ·  ciudad: " + conf.ciudad, 13, GRIS));
+        proactiva = casilla("NAVI aparece sola: saluda al prender la tele y comenta lo que ve", conf.proactiva);
+        col.addView(proactiva);
 
         espacio(col, 16);
         col.addView(texto("Para ponerlo como salvapantallas: Ajustes de la tele → Sistema → Salvapantallas → «NAVI · Safebooru».", 13, GRIS));
@@ -119,6 +121,7 @@ public class Ajustes extends Activity {
         }
         c.soloHorizontales = horizontales.isChecked();
         c.mostrarReloj = reloj.isChecked();
+        c.proactiva = proactiva.isChecked();
         String nueva = clave.getText().toString().trim();
         if (!nueva.isEmpty()) c.geminiKey = nueva;
         c.guardar(this);

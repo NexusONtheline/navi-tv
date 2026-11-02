@@ -1,6 +1,8 @@
 package io.github.nexusontheline.navitv;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.util.Base64;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -87,16 +89,35 @@ public final class Cerebro {
         void usandoHerramienta(String nombre);
     }
 
-    public synchronized String responder(String texto, Oyente oyente) throws Fallo {
+    public String responder(String texto, Oyente oyente) throws Fallo {
+        return responder(texto, null, null, oyente);
+    }
+
+    /**
+     * Responde a lo que dijo la usuaria. Si hay captura de la pantalla, NAVI también la ve
+     * (solo en este turno: luego se guarda como texto para no gastar).
+     */
+    public synchronized String responder(String texto, Bitmap pantalla, String app, Oyente oyente) throws Fallo {
         Conf conf = Conf.cargar(ctx);
         if (conf.geminiKey.isEmpty()) {
             throw new Fallo("Me falta la clave de Gemini. Ponla en la app NAVI, porfa.");
         }
 
         List<JSONObject> turno = new ArrayList<>();
+        JSONObject imagen = null;
         try {
-            turno.add(new JSONObject().put("role", "user")
-                    .put("parts", new JSONArray().put(new JSONObject().put("text", texto))));
+            JSONArray partes = new JSONArray();
+            String dicho = texto;
+            if (app != null && !app.isEmpty()) dicho = "[Está en la app: " + app + "] " + texto;
+            partes.put(new JSONObject().put("text", dicho));
+            if (pantalla != null) {
+                imagen = new JSONObject().put("inlineData", jpeg(pantalla));
+                partes.put(imagen);
+                partes.put(new JSONObject().put("text",
+                        "(Adjunto lo que se ve ahora en la tele, por si te pregunta algo sobre eso. "
+                                + "Si no tiene que ver, ignóralo y no lo menciones.)"));
+            }
+            turno.add(new JSONObject().put("role", "user").put("parts", partes));
         } catch (JSONException e) {
             throw new Fallo("Error interno.");
         }
@@ -131,6 +152,7 @@ public final class Cerebro {
                     }
                 }
                 if (respuestas.length() == 0) {
+                    quitarImagen(turno.get(0), imagen);
                     String final_ = limpiar(dicho.toString());
                     return final_.isEmpty() ? "…" : final_;
                 }
@@ -149,6 +171,143 @@ public final class Cerebro {
 
     public synchronized void olvidar() {
         turnos.clear();
+    }
+
+    /** Tras responder, la captura ya no hace falta: se cambia por una nota para no gastar. */
+    private static void quitarImagen(JSONObject mensaje, JSONObject imagen) {
+        if (imagen == null) return;
+        try {
+            JSONArray partes = mensaje.getJSONArray("parts");
+            JSONArray nuevas = new JSONArray();
+            for (int i = 0; i < partes.length(); i++) {
+                if (partes.get(i) == imagen) continue;
+                JSONObject p = partes.getJSONObject(i);
+                if (p.optString("text").startsWith("(Adjunto lo que se ve")) continue;
+                nuevas.put(p);
+            }
+            nuevas.put(new JSONObject().put("text", "(había una captura de la pantalla)"));
+            mensaje.put("parts", nuevas);
+        } catch (JSONException ignored) {
+        }
+    }
+
+    private static JSONObject jpeg(Bitmap b) throws JSONException {
+        int ancho = 768;
+        Bitmap chica = b.getWidth() > ancho
+                ? Bitmap.createScaledBitmap(b, ancho, Math.round(b.getHeight() * ancho / (float) b.getWidth()), true)
+                : b;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        chica.compress(Bitmap.CompressFormat.JPEG, 70, out);
+        return new JSONObject().put("mimeType", "image/jpeg")
+                .put("data", Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP));
+    }
+
+    // ------------------------------------------------------------------ aparecer sola
+
+    /** Lo que NAVI decide al mirar la pantalla por su cuenta. */
+    public static final class Observacion {
+        public boolean comentar;
+        public String frase = "";
+        public String reaccion = "normal";
+        public String objeto = "";
+    }
+
+    /**
+     * NAVI mira la pantalla por su cuenta y decide si le llama la atención algo.
+     * Con saludo=true, la tele se acaba de prender y siempre saluda.
+     */
+    public Observacion observar(Bitmap pantalla, String app, boolean saludo, boolean forzar) throws Fallo {
+        Conf conf = Conf.cargar(ctx);
+        if (conf.geminiKey.isEmpty()) throw new Fallo("sin clave");
+        try {
+            String pedido;
+            if (saludo) {
+                pedido = "La tele se acaba de prender. Salúdala por su nombre con curiosidad genuina y "
+                        + "cariño, según la hora del día, y pregúntale algo (qué va a ver, cómo le fue...). "
+                        + "Una o dos frases. comentar debe ser true.";
+            } else {
+                pedido = "Estás mirando por tu cuenta lo que ella tiene en la tele"
+                        + (app == null || app.isEmpty() ? "" : " (app: " + app + ")") + ". "
+                        + "Decide si de verdad algo te llama la atención: un personaje o juego que "
+                        + "conoces, algo gracioso, bonito o curioso, o algo que sabes que le gusta. "
+                        + "Si es un menú aburrido, una pantalla negra o algo sin gracia, comentar = false. "
+                        + "Como mucho una de cada tres veces deberías comentar. "
+                        + "Si comentas: una o dos frases cortas, naturales, como una amiga curiosa que "
+                        + "está viendo la tele con ella; puedes recomendarle algo relacionado. "
+                        + "No describas la imagen como un robot.";
+            }
+            if (forzar) pedido += " Esta vez comenta sí o sí (comentar = true).";
+            pedido += " Elige la reacción de tu carita y, si hay algo muy reconocible, un solo emoji "
+                    + "relacionado como objeto (por ejemplo una espada para Zelda o un hongo para Mario); "
+                    + "si no, objeto vacío.";
+
+            JSONArray partes = new JSONArray().put(new JSONObject().put("text", pedido));
+            if (pantalla != null) partes.put(new JSONObject().put("inlineData", jpeg(pantalla)));
+
+            JSONObject esquema = new JSONObject().put("type", "OBJECT")
+                    .put("properties", new JSONObject()
+                            .put("comentar", new JSONObject().put("type", "BOOLEAN"))
+                            .put("frase", new JSONObject().put("type", "STRING"))
+                            .put("reaccion", new JSONObject().put("type", "STRING").put("enum", new JSONArray()
+                                    .put("normal").put("feliz").put("risa").put("sorprendida")
+                                    .put("curiosa").put("enamorada").put("triste").put("pensativa")))
+                            .put("objeto", new JSONObject().put("type", "STRING")))
+                    .put("required", new JSONArray().put("comentar").put("frase").put("reaccion").put("objeto"));
+
+            JSONObject cuerpo = new JSONObject()
+                    .put("systemInstruction", new JSONObject().put("parts",
+                            new JSONArray().put(new JSONObject().put("text", instruccion(conf)))))
+                    .put("contents", new JSONArray().put(new JSONObject().put("role", "user").put("parts", partes)))
+                    .put("generationConfig", new JSONObject()
+                            .put("responseMimeType", "application/json")
+                            .put("responseSchema", esquema));
+
+            JSONObject r = null;
+            for (String modelo : new String[]{conf.modelo, conf.modeloReserva}) {
+                if (modelo.isEmpty()) continue;
+                try {
+                    r = post(API + modelo + ":generateContent", conf.geminiKey, cuerpo.toString());
+                    break;
+                } catch (Saturado s) {
+                    Log.w(TAG, modelo + " saturado al observar");
+                }
+            }
+            if (r == null) throw new Fallo("saturado");
+            JSONArray p = r.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+            StringBuilder texto = new StringBuilder();
+            for (int i = 0; i < p.length(); i++) {
+                if (!p.getJSONObject(i).optBoolean("thought")) texto.append(p.getJSONObject(i).optString("text"));
+            }
+            JSONObject j = new JSONObject(texto.toString());
+            Observacion o = new Observacion();
+            o.comentar = j.optBoolean("comentar");
+            o.frase = limpiar(j.optString("frase"));
+            o.reaccion = j.optString("reaccion", "normal");
+            o.objeto = j.optString("objeto", "").trim();
+            if (o.frase.isEmpty()) o.comentar = false;
+            Log.i(TAG, "observar -> " + j);
+            if (o.comentar) recordarComentario(o.frase, saludo);
+            return o;
+        } catch (Fallo f) {
+            throw f;
+        } catch (Exception e) {
+            Log.w(TAG, "observar falló", e);
+            throw new Fallo("observar falló");
+        }
+    }
+
+    /** Para que, si luego le habla con el micro, NAVI sepa lo que acaba de decir sola. */
+    private synchronized void recordarComentario(String frase, boolean saludo) {
+        try {
+            List<JSONObject> turno = new ArrayList<>();
+            turno.add(new JSONObject().put("role", "user").put("parts", new JSONArray().put(new JSONObject()
+                    .put("text", saludo ? "(Se acaba de prender la tele.)" : "(Apareciste sola mirando la tele.)"))));
+            turno.add(new JSONObject().put("role", "model").put("parts",
+                    new JSONArray().put(new JSONObject().put("text", frase))));
+            turnos.add(turno);
+            while (turnos.size() > TURNOS_RECORDADOS) turnos.remove(0);
+        } catch (JSONException ignored) {
+        }
     }
 
     // ------------------------------------------------------------------ Gemini

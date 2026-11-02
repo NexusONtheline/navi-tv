@@ -18,6 +18,13 @@ import android.view.View;
 public class Carita extends View {
     public enum Estado { REPOSO, ESCUCHANDO, PENSANDO, HABLANDO }
 
+    /** Cara que pone cuando aparece sola (o cuando habla). */
+    public enum Reaccion { NORMAL, FELIZ, RISA, SORPRENDIDA, CURIOSA, ENAMORADA, TRISTE, PENSATIVA;
+        public static Reaccion de(String s) {
+            try { return valueOf(s.trim().toUpperCase(java.util.Locale.ROOT)); } catch (Exception e) { return NORMAL; }
+        }
+    }
+
     private static final float ANCHO = 120, ALTO = 104;
     private static final int AZUL = Color.rgb(158, 204, 255);
     private static final int ROSA = Color.rgb(224, 69, 122);
@@ -36,11 +43,17 @@ public class Carita extends View {
     private long proximoParpadeo = inicio + 2500;
     private long parpadeo = 0;
     private Estado estado = Estado.REPOSO;
+    private Reaccion reaccion = Reaccion.NORMAL;
     private float escalaHalo = -1;
 
     public Carita(Context ctx) {
         super(ctx);
         setLayerType(LAYER_TYPE_SOFTWARE, null);  // para el desenfoque del brillo
+    }
+
+    public void setReaccion(Reaccion r) {
+        reaccion = r == null ? Reaccion.NORMAL : r;
+        invalidate();
     }
 
     public void setEstado(Estado e) {
@@ -56,7 +69,8 @@ public class Carita extends View {
         c.scale(escala, escala);
         c.translate(0, (float) Math.sin(t * 1.6) * 2.5f);  // flota
 
-        int color = estado == Estado.ESCUCHANDO ? ROSA : AZUL;
+        int color = estado == Estado.ESCUCHANDO || (reaccion == Reaccion.ENAMORADA && estado != Estado.PENSANDO)
+                ? ROSA : AZUL;
 
         // Brillo alrededor (late más fuerte cuando escucha)
         float pulso = estado == Estado.ESCUCHANDO ? 0.55f + 0.25f * (float) Math.sin(t * 6)
@@ -122,28 +136,115 @@ public class Carita extends View {
         } else {
             mx = 3 * (float) Math.sin(t * 0.6);
         }
-        float altoOjo = estado == Estado.ESCUCHANDO ? 16 : 13;
-        relleno(conAlfa(color, 0.95f));
-        for (float ox : OJOS_X) {
-            float cx = ox + mx, cy = OJOS_Y + my;
-            float a = altoOjo * Math.max(0.12f, abierto);
-            r.set(cx - 5.5f, cy - a / 2, cx + 5.5f, cy + a / 2);
-            c.drawRoundRect(r, 3, 3, p);
+        Reaccion re = estado == Estado.ESCUCHANDO || estado == Estado.PENSANDO ? Reaccion.NORMAL : reaccion;
+        if (re == Reaccion.PENSATIVA) { mx = 5; my = -5; }
+        if (re == Reaccion.TRISTE) my = 3;
+        int tinta = conAlfa(color, 0.95f);
+
+        // Ojos
+        for (int i = 0; i < OJOS_X.length; i++) {
+            float cx = OJOS_X[i] + mx, cy = OJOS_Y + my;
+            switch (re) {
+                case FELIZ:
+                case RISA:  // ^ ^
+                    camino.reset();
+                    camino.moveTo(cx - 6, cy + 3);
+                    camino.quadTo(cx, cy - 7, cx + 6, cy + 3);
+                    trazo(tinta, 2.6f);
+                    c.drawPath(camino, p);
+                    break;
+                case SORPRENDIDA:  // ojos redondos grandes
+                    relleno(tinta);
+                    c.drawCircle(cx, cy, 6.5f * Math.max(0.15f, abierto), p);
+                    break;
+                case ENAMORADA:  // ojos de corazón
+                    corazon(c, cx, cy, 6.5f + 0.8f * (float) Math.sin(t * 6), tinta);
+                    break;
+                case CURIOSA: {  // un ojo más grande que el otro
+                    float a = (i == 0 ? 16 : 10) * Math.max(0.12f, abierto);
+                    relleno(tinta);
+                    r.set(cx - 5.5f, cy - a / 2, cx + 5.5f, cy + a / 2);
+                    c.drawRoundRect(r, 3, 3, p);
+                    break;
+                }
+                case TRISTE: {
+                    float a = 11 * Math.max(0.12f, abierto);
+                    relleno(tinta);
+                    r.set(cx - 5f, cy - a / 2, cx + 5f, cy + a / 2);
+                    c.drawRoundRect(r, 3, 3, p);
+                    trazo(tinta, 1.6f);  // cejitas caídas
+                    float lado = i == 0 ? 1 : -1;
+                    c.drawLine(cx - 6 * lado, cy - 11, cx + 5 * lado, cy - 8, p);
+                    break;
+                }
+                default: {
+                    float altoOjo = estado == Estado.ESCUCHANDO ? 16 : 13;
+                    float a = altoOjo * Math.max(0.12f, abierto);
+                    relleno(tinta);
+                    r.set(cx - 5.5f, cy - a / 2, cx + 5.5f, cy + a / 2);
+                    c.drawRoundRect(r, 3, 3, p);
+                }
+            }
         }
+        if (re == Reaccion.CURIOSA) {  // un «?» que flota
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(conAlfa(color, 0.8f));
+            p.setTextSize(14);
+            p.setFakeBoldText(true);
+            c.drawText("?", PX + PW - 18, PY + 20 + 2 * (float) Math.sin(t * 3), p);
+            p.setFakeBoldText(false);
+        }
+
+        // Boca
         float bx = (OJOS_X[0] + OJOS_X[1]) / 2 + mx * 0.5f, by = OJOS_Y + 21 + my * 0.5f;
         if (estado == Estado.HABLANDO) {
             float boca = Math.abs((float) Math.sin(t * 11)) * 5 + Math.abs((float) Math.sin(t * 7)) * 2;
             float alto = 7 * Math.max(0.15f, boca / 7);
+            relleno(tinta);
             r.set(bx - 7, by - alto, bx + 7, by + alto);
             c.drawOval(r, p);
-        } else {
-            float sonrisa = estado == Estado.ESCUCHANDO ? 4 : 1.5f;
-            camino.reset();
-            camino.moveTo(bx - 7, by);
-            camino.cubicTo(bx - 3, by + sonrisa, bx + 3, by + sonrisa, bx + 7, by);
-            trazo(conAlfa(color, 0.95f), 1.9f);
-            c.drawPath(camino, p);
+            return;
         }
+        switch (re) {
+            case RISA:  // boca abierta en D
+                relleno(tinta);
+                r.set(bx - 8, by - 6, bx + 8, by + 8);
+                c.drawArc(r, 0, 180, true, p);
+                break;
+            case SORPRENDIDA:
+                trazo(tinta, 2f);
+                c.drawCircle(bx, by + 1, 4, p);
+                break;
+            case TRISTE:
+                camino.reset();
+                camino.moveTo(bx - 7, by + 3);
+                camino.cubicTo(bx - 3, by - 2, bx + 3, by - 2, bx + 7, by + 3);
+                trazo(tinta, 1.9f);
+                c.drawPath(camino, p);
+                break;
+            case PENSATIVA:
+                trazo(tinta, 1.9f);
+                c.drawLine(bx - 5, by + 1, bx + 5, by - 1, p);
+                break;
+            default: {
+                float sonrisa = estado == Estado.ESCUCHANDO ? 4
+                        : (re == Reaccion.FELIZ || re == Reaccion.ENAMORADA) ? 6 : 1.5f;
+                camino.reset();
+                camino.moveTo(bx - 7, by);
+                camino.cubicTo(bx - 3, by + sonrisa, bx + 3, by + sonrisa, bx + 7, by);
+                trazo(tinta, 1.9f);
+                c.drawPath(camino, p);
+            }
+        }
+    }
+
+    private void corazon(Canvas c, float cx, float cy, float tam, int color) {
+        camino.reset();
+        camino.moveTo(cx, cy + tam * 0.8f);
+        camino.cubicTo(cx - tam * 1.4f, cy - tam * 0.1f, cx - tam * 0.6f, cy - tam * 1.1f, cx, cy - tam * 0.35f);
+        camino.cubicTo(cx + tam * 0.6f, cy - tam * 1.1f, cx + tam * 1.4f, cy - tam * 0.1f, cx, cy + tam * 0.8f);
+        relleno(color);
+        c.drawPath(camino, p);
     }
 
     private void relleno(int color) {

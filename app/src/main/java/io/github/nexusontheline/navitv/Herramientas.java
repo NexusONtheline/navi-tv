@@ -70,6 +70,10 @@ public final class Herramientas {
                 .put("description", "Etiquetas que nunca deben salir, separadas por espacio"));
         p.put("segundos", new JSONObject().put("type", "integer").put("description", "Segundos por imagen"));
         p.put("ver_ahora", new JSONObject().put("type", "boolean").put("description", "Mostrarlo ya"));
+        d.put(funcion("aparecer_sola",
+                "Activa o desactiva que NAVI aparezca sola en la pantalla a comentar lo que ve y a saludar al prender la tele.",
+                new JSONObject().put("type", "object").put("properties", new JSONObject()
+                        .put("activar", new JSONObject().put("type", "boolean"))), "activar"));
         d.put(funcion("recordar",
                 "Guarda algo que tu usuaria te contó y vale la pena recordar para siempre (gustos, nombres, planes, cosas importantes).",
                 props("dato", "string", "Lo que hay que recordar, en una frase corta"), "dato"));
@@ -91,6 +95,13 @@ public final class Herramientas {
                 case "clima": return clima(a.optString("ciudad"));
                 case "abrir_ajustes": return abrirAjustes(a.optString("seccion"));
                 case "salvapantallas": return salvapantallas(a);
+                case "aparecer_sola": {
+                    Conf c = Conf.cargar(ctx);
+                    c.proactiva = a.optBoolean("activar", true);
+                    c.guardar(ctx);
+                    return c.proactiva ? "Listo: volveré a aparecer sola de vez en cuando."
+                            : "Listo: ya no apareceré sola; solo cuando me llames con el micro.";
+                }
                 case "recordar": return Memoria.recordar(ctx, a.optString("dato"));
                 case "olvidar": return Memoria.olvidar(ctx, a.optString("dato"));
                 default: return "Esa herramienta no existe.";

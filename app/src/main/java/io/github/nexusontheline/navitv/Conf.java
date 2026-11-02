@@ -21,6 +21,8 @@ public final class Conf {
     public String ciudad;
     public String voz;
     public float tono;
+    /** NAVI aparece sola (saludo al prender y comentarios al azar). */
+    public boolean proactiva;
 
     private Conf() {}
 
@@ -43,6 +45,7 @@ public final class Conf {
         c.ciudad = p.getString("ciudad", "Guayaquil, Ecuador");
         c.voz = p.getString("voz", "");
         c.tono = p.getFloat("tono", 1.0f);
+        c.proactiva = p.getBoolean("proactiva", true);
         return c;
     }
 
@@ -60,6 +63,7 @@ public final class Conf {
                 .putString("ciudad", ciudad.trim())
                 .putString("voz", voz.trim())
                 .putFloat("tono", tono)
+                .putBoolean("proactiva", proactiva)
                 .apply();
     }
 }
