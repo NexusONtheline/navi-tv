@@ -94,6 +94,7 @@ public class NaviSesion extends VoiceInteractionSession {
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
+        registrarArgumentos("", args);
         visible = true;
         vez++;
         pensando = false;
@@ -104,6 +105,24 @@ public class NaviSesion extends VoiceInteractionSession {
             return;
         }
         escuchar();
+    }
+
+    /** Para depurar: qué le pasa la tele a NAVI al apretar el micro. */
+    private void registrarArgumentos(String prefijo, Bundle b) {
+        if (b == null) return;
+        try {
+            for (String k : b.keySet()) {
+                try {
+                    Object v = b.get(k);
+                    Log.i(TAG, "arg " + prefijo + k + " = " + (v == null ? "null" : v.getClass().getName() + " " + v));
+                    if (v instanceof Bundle) registrarArgumentos(prefijo + k + ".", (Bundle) v);
+                } catch (Throwable e) {
+                    Log.i(TAG, "arg " + prefijo + k + " ilegible: " + e);
+                }
+            }
+        } catch (Throwable e) {
+            Log.i(TAG, "args ilegibles: " + e);
+        }
     }
 
     @Override

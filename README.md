@@ -49,3 +49,15 @@ Cuando la tele se queda quieta, muestra imágenes al azar de [Safebooru](https:/
 ## 🛠️ Compilar
 
 GitHub Actions compila el APK en cada cambio, así que no hace falta Android Studio. Para firmarlo usa dos secretos del repo: `NAVI_KEYSTORE_B64` y `NAVI_KEYSTORE_PASS`.
+
+## ⌨️ Escribir en la tele desde la laptop
+
+Escribir con el control es lento. Selecciona un campo de texto en la tele y desde la laptop escribe:
+
+```bash
+tv-escribir "https://safebooru.org"        # escribe
+tv-escribir -b "width:>=1920 sort:random"  # borra lo que había y escribe
+tv-escribir -e "serial experiments lain"   # escribe y aprieta Enter
+```
+
+Instálalo con `ln -s "$PWD/scripts/tv-escribir" ~/.local/bin/`. Usa un teclado invisible de la app NAVI, que solo está activo mientras escribe; después la tele vuelve a su teclado de siempre.

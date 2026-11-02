@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Escribe texto en la tele desde la laptop, en el campo de texto que tenga seleccionado.
+#
+#   tv-escribir "https://safebooru.org"          escribe el texto
+#   tv-escribir -b "width:>=1920 sort:random"    borra lo que había antes de escribir
+#   tv-escribir -e "lain"                        escribe y aprieta Enter / Aceptar
+#
+# La tele se busca en NAVI_TV (por defecto 192.168.100.15:5555).
+set -euo pipefail
+
+TV="${NAVI_TV:-192.168.100.15:5555}"
+TECLADO="io.github.nexusontheline.navitv/.Teclado"
+borrar=false
+enter=false
+
+while getopts "be" op; do
+    case "$op" in
+        b) borrar=true ;;
+        e) enter=true ;;
+        *) sed -n '2,8p' "$0"; exit 1 ;;
+    esac
+done
+shift $((OPTIND - 1))
+texto="${*:-}"
+
+if [ -z "$texto" ] && ! $enter && ! $borrar; then
+    sed -n '2,8p' "$0"
+    exit 1
+fi
+
+adb connect "$TV" >/dev/null 2>&1 || true
+if ! adb -s "$TV" get-state >/dev/null 2>&1; then
+    echo "No encuentro la tele en $TV. ¿Está prendida y con la depuración inalámbrica activada?" >&2
+    exit 1
+fi
+A=(adb -s "$TV" shell)
+
+# Recordar el teclado de siempre para devolverlo al terminar
+anterior="$("${A[@]}" settings get secure default_input_method | tr -d '\r')"
+devolver() { [ -n "$anterior" ] && [ "$anterior" != "$TECLADO" ] && "${A[@]}" ime set "$anterior" >/dev/null 2>&1 || true; }
+trap devolver EXIT
+
+"${A[@]}" ime enable "$TECLADO" >/dev/null
+"${A[@]}" ime set "$TECLADO" >/dev/null
+sleep 0.6
+
+b64="$(printf '%s' "$texto" | base64 -w0)"
+resultado="$("${A[@]}" am broadcast -a io.github.nexusontheline.navitv.ESCRIBIR \
+    --es b64 "$b64" --ez borrar "$borrar" --ez enter "$enter" | tr -d '\r')"
+
+if echo "$resultado" | grep -q "result=7"; then
+    echo "Escrito en la tele ✓"
+else
+    echo "No hay ningún campo de texto seleccionado en la tele. Selecciona uno con el control y vuelve a probar." >&2
+    exit 1
+fi

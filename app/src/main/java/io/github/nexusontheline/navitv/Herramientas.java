@@ -43,11 +43,11 @@ public final class Herramientas {
     public JSONArray declaraciones() throws JSONException {
         JSONArray d = new JSONArray();
         d.put(funcion("abrir_app",
-                "Abre una app instalada en la tele (Netflix, TizenTube, RetroArch...).",
+                "Abre una app instalada en la tele (Netflix, YouTube, RetroArch...). Para 'abre YouTube' usa esta, no buscar_en_youtube.",
                 props("nombre", "string", "Nombre de la app, como lo diría el usuario"),
                 "nombre"));
         d.put(funcion("buscar_en_youtube",
-                "Busca videos en YouTube (abre TizenTube, el YouTube sin anuncios) y muestra los resultados.",
+                "Busca videos concretos en YouTube (con TizenTube, sin anuncios). Solo si pide buscar o poner algo específico.",
                 props("busqueda", "string", "Qué buscar"),
                 "busqueda"));
         JSONObject vol = props("accion", "string",
@@ -109,6 +109,8 @@ public final class Herramientas {
 
     private String abrirApp(String nombre) {
         String buscado = normalizar(nombre);
+        // «Abre YouTube» = TizenTube, el YouTube sin anuncios
+        if (buscado.contains("youtube") && !buscado.contains("music") && instalada(TIZENTUBE)) buscado = "tizentube";
         Map<String, Intent> apps = apps();
         Intent elegido = null;
         String etiqueta = null;

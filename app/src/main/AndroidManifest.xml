@@ -70,6 +70,19 @@
             android:name=".NaviSesionServicio"
             android:exported="true"
             android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <!-- Teclado invisible para escribir desde la laptop (tv-escribir) -->
+        <service
+            android:name=".Teclado"
+            android:exported="true"
+            android:label="NAVI (escribir desde la laptop)"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data
+                android:name="android.view.im"
+                android:resource="@xml/teclado" />
+        </service>
         <service
             android:name=".NaviReconocedor"
             android:exported="true">
