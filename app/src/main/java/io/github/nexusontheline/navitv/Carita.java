@@ -16,7 +16,14 @@ import android.view.View;
  * Se dibuja en un lienzo de 120×104 unidades y se escala al tamaño de la vista.
  */
 public class Carita extends View {
-    public enum Estado { REPOSO, ESCUCHANDO, PENSANDO, HABLANDO }
+    public enum Estado { REPOSO, ESCUCHANDO, PENSANDO, HABLANDO, DORMIDA }
+
+    /** Espacio extra arriba para el gorrito de dormir. */
+    private static final float ARRIBA = 30;
+    private int colorGorro = 0;      // 0 = sin gorro
+    private boolean gorroRayas;
+    /** Para que abra un ojito un momento mientras duerme. */
+    private long ojoAbiertoHasta;
 
     /** Cara que pone cuando aparece sola (o cuando habla). */
     public enum Reaccion { NORMAL, FELIZ, RISA, SORPRENDIDA, CURIOSA, ENAMORADA, TRISTE, PENSATIVA;
@@ -56,6 +63,18 @@ public class Carita extends View {
         invalidate();
     }
 
+    /** Gorrito de dormir (color 0 = quitarlo). */
+    public void setGorro(int color, boolean rayas) {
+        colorGorro = color;
+        gorroRayas = rayas;
+        invalidate();
+    }
+
+    /** Mientras duerme, abre un ojito unos segundos (para decir algo). */
+    public void abrirUnOjo(long ms) {
+        ojoAbiertoHasta = SystemClock.uptimeMillis() + ms;
+    }
+
     public void setEstado(Estado e) {
         estado = e;
         invalidate();
@@ -64,16 +83,21 @@ public class Carita extends View {
     @Override
     protected void onDraw(Canvas c) {
         float t = (SystemClock.uptimeMillis() - inicio) / 1000f;
-        float escala = Math.min(getWidth() / ANCHO, getHeight() / ALTO);
+        float arriba = colorGorro != 0 ? ARRIBA : 0;
+        float escala = Math.min(getWidth() / ANCHO, getHeight() / (ALTO + arriba));
         c.save();
         c.scale(escala, escala);
-        c.translate(0, (float) Math.sin(t * 1.6) * 2.5f);  // flota
+        c.translate(0, arriba);
+        boolean dormida = estado == Estado.DORMIDA;
+        // flota (más lento y suave cuando duerme, como respirando)
+        c.translate(0, dormida ? (float) Math.sin(t * 0.8) * 1.5f : (float) Math.sin(t * 1.6) * 2.5f);
 
         int color = estado == Estado.ESCUCHANDO || (reaccion == Reaccion.ENAMORADA && estado != Estado.PENSANDO)
                 ? ROSA : AZUL;
 
-        // Brillo alrededor (late más fuerte cuando escucha)
+        // Brillo alrededor (late más fuerte cuando escucha, muy tenue cuando duerme)
         float pulso = estado == Estado.ESCUCHANDO ? 0.55f + 0.25f * (float) Math.sin(t * 6)
+                : dormida ? 0.15f + 0.05f * (float) Math.sin(t * 0.8)
                 : 0.30f + 0.08f * (float) Math.sin(t * 2);
         halo.setColor(conAlfa(color, pulso));
         if (escala != escalaHalo) {
@@ -102,7 +126,8 @@ public class Carita extends View {
             relleno(conAlfa(color, 0.20f));
             c.drawRect(PX, franja, PX + PW, franja + 4, p);
         }
-        cara(c, t, color);
+        if (dormida) dormir(c, t, color);
+        else cara(c, t, color);
         c.restore();
 
         // Reflejo del cristal
@@ -113,9 +138,12 @@ public class Carita extends View {
         c.drawPath(camino, p);
 
         // Lucecita bajo la pantalla
-        boolean luz = estado != Estado.REPOSO && ((int) (t * 4)) % 2 == 1;
-        relleno(luz ? ROSA : Color.rgb(64, 166, 89));
+        boolean luz = estado != Estado.REPOSO && !dormida && ((int) (t * 4)) % 2 == 1;
+        relleno(luz ? ROSA : dormida ? Color.rgb(40, 90, 55) : Color.rgb(64, 166, 89));
         c.drawCircle(PX + PW / 2, PY + PH + 8, 1.8f, p);
+
+        if (colorGorro != 0) gorro(c, t);
+        if (dormida) zetas(c, t, color);
 
         c.restore();
         postInvalidateOnAnimation();
@@ -236,6 +264,72 @@ public class Carita extends View {
                 c.drawPath(camino, p);
             }
         }
+    }
+
+    /** Dormida: ojitos cerrados (o uno abierto un momento) y boquita pequeña. */
+    private void dormir(Canvas c, float t, int color) {
+        int tinta = conAlfa(color, 0.85f);
+        boolean unOjo = SystemClock.uptimeMillis() < ojoAbiertoHasta;
+        for (int i = 0; i < OJOS_X.length; i++) {
+            float cx = OJOS_X[i], cy = OJOS_Y + 2;
+            if (unOjo && i == 1) {
+                relleno(tinta);
+                r.set(cx - 5, cy - 6, cx + 5, cy + 6);
+                c.drawRoundRect(r, 3, 3, p);
+                continue;
+            }
+            camino.reset();
+            camino.moveTo(cx - 6, cy - 1);
+            camino.quadTo(cx, cy + 5, cx + 6, cy - 1);
+            trazo(tinta, 2.2f);
+            c.drawPath(camino, p);
+        }
+        float bx = (OJOS_X[0] + OJOS_X[1]) / 2, by = OJOS_Y + 20;
+        float abre = 1.5f + 1.2f * (float) Math.sin(t * 0.8);  // respira
+        relleno(conAlfa(color, 0.7f));
+        r.set(bx - 3, by - abre, bx + 3, by + abre);
+        c.drawOval(r, p);
+    }
+
+    /** Zetas que suben flotando desde la esquina. */
+    private void zetas(Canvas c, float t, int color) {
+        p.setStyle(Paint.Style.FILL);
+        p.setFakeBoldText(true);
+        for (int i = 0; i < 3; i++) {
+            float fase = (t * 0.25f + i / 3f) % 1f;
+            p.setTextSize(9 + fase * 9);
+            p.setColor(conAlfa(color, (1 - fase) * 0.9f));
+            c.drawText("z", PX + PW - 6 + fase * 14, PY + 10 - fase * 34, p);
+        }
+        p.setFakeBoldText(false);
+    }
+
+    /** Gorrito de dormir con pompón que cuelga a un lado. */
+    private void gorro(Canvas c, float t) {
+        float cae = (float) Math.sin(t * 0.8) * 2;
+        // Cuerpo del gorro: de la banda sobre la pantalla hacia arriba y cayendo a la derecha
+        camino.reset();
+        camino.moveTo(PX + 4, PY + 2);
+        camino.cubicTo(PX + 10, PY - 30, PX + 60, PY - 34, PX + 96 + cae, PY - 8 + cae);
+        camino.cubicTo(PX + 70, PY - 16, PX + 62, PY - 6, PX + 66, PY + 2);
+        camino.close();
+        relleno(colorGorro);
+        c.drawPath(camino, p);
+        if (gorroRayas) {
+            c.save();
+            c.clipPath(camino);
+            relleno(Color.argb(150, 255, 255, 255));
+            for (int i = 0; i < 6; i++) {
+                float x = PX + 6 + i * 16;
+                c.drawRect(x, PY - 40, x + 6, PY + 4, p);
+            }
+            c.restore();
+        }
+        // Banda blanca y pompón
+        r.set(PX - 2, PY - 4, PX + 70, PY + 5);
+        relleno(Color.rgb(240, 236, 228));
+        c.drawRoundRect(r, 5, 5, p);
+        c.drawCircle(PX + 98 + cae, PY - 6 + cae, 6, p);
     }
 
     private void corazon(Canvas c, float cx, float cy, float tam, int color) {

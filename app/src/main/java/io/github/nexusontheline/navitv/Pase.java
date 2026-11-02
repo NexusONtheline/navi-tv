@@ -56,7 +56,9 @@ public final class Pase {
     private final ImageView[] vistas = new ImageView[2];
     private final TextView aviso;
     private final ObjectAnimator[] zooms = new ObjectAnimator[2];
-    private View reloj;
+    private Tablero tablero;
+    /** Etiquetas de la imagen que se está descargando (para el widget del nombre). */
+    private String etiquetasEnCurso = "";
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ArrayDeque<String> cola = new ArrayDeque<>();
     private final int ancho;
@@ -95,32 +97,9 @@ public final class Pase {
         lpAviso.setMargins(margen, margen, margen, margen);
         raiz.addView(aviso, lpAviso);
 
-        if (conf.mostrarReloj) {
-            LinearLayout reloj = new LinearLayout(ctx);
-            this.reloj = reloj;
-            reloj.setOrientation(LinearLayout.VERTICAL);
-            reloj.setGravity(Gravity.END);
-
-            TextClock hora = new TextClock(ctx);
-            hora.setFormat24Hour("HH:mm");
-            hora.setFormat12Hour("h:mm");
-            hora.setTextSize(48);
-            hora.setTextColor(Color.WHITE);
-            hora.setShadowLayer(10, 0, 0, Color.BLACK);
-            reloj.addView(hora);
-
-            TextClock fecha = new TextClock(ctx);
-            fecha.setFormat24Hour("EEEE d 'de' MMMM");
-            fecha.setFormat12Hour("EEEE d 'de' MMMM");
-            fecha.setTextSize(16);
-            fecha.setTextColor(0xDDFFFFFF);
-            fecha.setShadowLayer(8, 0, 0, Color.BLACK);
-            reloj.addView(fecha);
-
-            FrameLayout.LayoutParams lpReloj = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-            lpReloj.setMargins(margen, margen, margen, margen);
-            raiz.addView(reloj, lpReloj);
-        }
+        // Reloj y widgets (clima, anime de hoy, NAVI durmiendo...)
+        tablero = new Tablero(ctx, conf);
+        raiz.addView(tablero.vista(), new FrameLayout.LayoutParams(-1, -1));
     }
 
     public View vista() {
@@ -130,12 +109,14 @@ public final class Pase {
     public void empezar() {
         if (activo) return;
         activo = true;
+        tablero.empezar();
         hilo = new Thread(this::bucle, "navi-pase");
         hilo.start();
     }
 
     public void parar() {
         activo = false;
+        tablero.parar();
         if (hilo != null) hilo.interrupt();
         ui.removeCallbacksAndMessages(null);
     }
@@ -166,7 +147,11 @@ public final class Pase {
             }
             if (!activo) return;
             final Bitmap b = imagen;
-            ui.post(() -> mostrar(b));
+            final String etiquetas = etiquetasEnCurso;
+            ui.post(() -> {
+                mostrar(b);
+                tablero.nuevaImagen(etiquetas);
+            });
             proximo = SystemClock.uptimeMillis() + conf.segundos * 1000L;
         }
     }
@@ -178,7 +163,9 @@ public final class Pase {
                 avisar("Safebooru no encontró nada con esas etiquetas.");
                 return null;
             }
-            String url = cola.poll();
+            String[] entrada = cola.poll().split("\n", 2);
+            String url = entrada[0];
+            etiquetasEnCurso = entrada.length > 1 ? entrada[1] : "";
             try {
                 Bitmap b = descargarImagen(url);
                 if (b != null) return b;
@@ -215,7 +202,7 @@ public final class Pase {
             for (String t : p.optString("tags", "").toLowerCase(Locale.ROOT).split("\\s+")) {
                 if (prohibidas.contains(t)) { vale = false; break; }
             }
-            if (vale) urls.add(archivo);
+            if (vale) urls.add(archivo + "\n" + p.optString("tags", ""));
         }
         Collections.shuffle(urls);
         cola.addAll(urls);
@@ -286,7 +273,7 @@ public final class Pase {
         nueva.bringToFront();
         // El aviso y el reloj siempre encima de las imágenes
         aviso.bringToFront();
-        if (reloj != null) reloj.bringToFront();
+        tablero.vista().bringToFront();
 
         nueva.animate().alpha(1f).setDuration(FUNDIDO_MS).withEndAction(() -> {
             vieja.setAlpha(0f);

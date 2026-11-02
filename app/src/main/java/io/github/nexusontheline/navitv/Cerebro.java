@@ -296,6 +296,39 @@ public final class Cerebro {
         }
     }
 
+    /**
+     * NAVI está dormida en el salvapantallas y abre un ojito: una frase cortita y adormilada,
+     * a veces sobre la ilustración que se ve (por sus etiquetas). Null si falla.
+     */
+    public String frasecita(String etiquetas) {
+        Conf conf = Conf.cargar(ctx);
+        if (conf.geminiKey.isEmpty()) return null;
+        try {
+            String pedido = "Estás dormida en el salvapantallas de la tele, con gorrito, y abres un ojito. "
+                    + "Di UNA frase muy corta (máximo 12 palabras), adormilada y tierna. "
+                    + "Puede ser un comentario o una curiosidad breve sobre la ilustración que se ve, "
+                    + "o algo soñoliento sobre ti. Sin comillas."
+                    + (etiquetas == null || etiquetas.isEmpty() ? ""
+                    : " Etiquetas de la ilustración (de Safebooru): " + etiquetas);
+            JSONObject cuerpo = new JSONObject()
+                    .put("systemInstruction", new JSONObject().put("parts",
+                            new JSONArray().put(new JSONObject().put("text", instruccion(conf)))))
+                    .put("contents", new JSONArray().put(new JSONObject().put("role", "user")
+                            .put("parts", new JSONArray().put(new JSONObject().put("text", pedido)))));
+            JSONObject r = post(API + conf.modelo + ":generateContent", conf.geminiKey, cuerpo.toString());
+            JSONArray p = r.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+            StringBuilder t = new StringBuilder();
+            for (int i = 0; i < p.length(); i++) {
+                if (!p.getJSONObject(i).optBoolean("thought")) t.append(p.getJSONObject(i).optString("text"));
+            }
+            String dicho = limpiar(t.toString()).replace("\"", "");
+            return dicho.length() > 120 ? dicho.substring(0, 119) + "…" : dicho;
+        } catch (Exception e) {
+            Log.w(TAG, "frasecita", e);
+            return null;
+        }
+    }
+
     /** Para que, si luego le habla con el micro, NAVI sepa lo que acaba de decir sola. */
     private synchronized void recordarComentario(String frase, boolean saludo) {
         try {

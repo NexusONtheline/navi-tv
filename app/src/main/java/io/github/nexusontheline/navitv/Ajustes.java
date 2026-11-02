@@ -24,7 +24,7 @@ public class Ajustes extends Activity {
     private static final int GRIS = 0xFF8A7FA8;
 
     private EditText etiquetas, nunca, segundos, clave;
-    private CheckBox horizontales, reloj, proactiva;
+    private CheckBox horizontales, reloj, proactiva, widgets;
     private float d;
 
     @Override
@@ -63,6 +63,8 @@ public class Ajustes extends Activity {
         col.addView(horizontales);
         reloj = casilla("Mostrar la hora y la fecha", conf.mostrarReloj);
         col.addView(reloj);
+        widgets = casilla("Widgets: clima, anime de hoy, ahora suena, gif, frase y NAVI durmiendo", conf.widgets);
+        col.addView(widgets);
         espacio(col, 20);
 
         LinearLayout botones = new LinearLayout(this);
@@ -121,6 +123,7 @@ public class Ajustes extends Activity {
         }
         c.soloHorizontales = horizontales.isChecked();
         c.mostrarReloj = reloj.isChecked();
+        c.widgets = widgets.isChecked();
         c.proactiva = proactiva.isChecked();
         String nueva = clave.getText().toString().trim();
         if (!nueva.isEmpty()) c.geminiKey = nueva;

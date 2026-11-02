@@ -12,6 +12,8 @@ public final class Conf {
     public int segundos;
     public boolean soloHorizontales;
     public boolean mostrarReloj;
+    /** Widgets en el salvapantallas (clima, anime de hoy, NAVI durmiendo...). */
+    public boolean widgets;
 
     // NAVI (asistente)
     public String geminiKey;
@@ -38,6 +40,7 @@ public final class Conf {
         c.segundos = Math.max(5, p.getInt("segundos", 60));
         c.soloHorizontales = p.getBoolean("horizontales", true);
         c.mostrarReloj = p.getBoolean("reloj", true);
+        c.widgets = p.getBoolean("widgets", true);
         c.geminiKey = p.getString("gemini_key", "");
         c.modelo = p.getString("modelo", "gemini-3.5-flash-lite");
         c.modeloReserva = p.getString("modelo_reserva", "gemini-3.5-flash");
@@ -56,6 +59,7 @@ public final class Conf {
                 .putInt("segundos", Math.max(5, segundos))
                 .putBoolean("horizontales", soloHorizontales)
                 .putBoolean("reloj", mostrarReloj)
+                .putBoolean("widgets", widgets)
                 .putString("gemini_key", geminiKey.trim())
                 .putString("modelo", modelo.trim())
                 .putString("modelo_reserva", modeloReserva.trim())
