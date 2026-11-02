@@ -318,7 +318,7 @@ public class NaviSesion extends VoiceInteractionSession {
      * Reloj propio de la canción: TizenTube solo avisa la posición al empezar (ni al pausar),
      * así que NAVI la avanza solo mientras de verdad suena audio en la tele.
      */
-    private long relojPos = -1, relojUlt, ultimaActualizacionApp = -1, ultimoRegistro;
+    private long relojPos = -1, relojUlt, ultimoRegistro, ultimaPosApp = -1;
 
     private void crearBarraLetra(Context ctx, FrameLayout raiz) {
         barra = new LinearLayout(ctx);
@@ -373,7 +373,7 @@ public class NaviSesion extends VoiceInteractionSession {
         indiceMostrado = -2;
         sinSonarDesde = 0;
         relojPos = -1;
-        ultimaActualizacionApp = -1;
+        ultimaPosApp = -1;
         lineaActual.setText("♪  " + cancion.titulo + " · " + cancion.artista);
         lineaTraduccion.setVisibility(View.GONE);
         lineaSiguiente.setText("");
@@ -417,16 +417,24 @@ public class NaviSesion extends VoiceInteractionSession {
             long ahora = SystemClock.elapsedRealtime();
             android.media.session.PlaybackState ps = mc.getPlaybackState();
             long act = ps != null ? ps.getLastPositionUpdateTime() : 0;
-            if (relojPos < 0 || act != ultimaActualizacionApp) {  // la app mandó una posición nueva
-                relojPos = Musica.posicion(mc);
-                ultimaActualizacionApp = act;
+            long posApp = ps != null ? ps.getPosition() : -1;
+            boolean suena = ((android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE)).isMusicActive();
+            if (relojPos < 0) {
+                // Al empezar: si la app da una posición creíble (inicio de canción), usarla;
+                // si no (TizenTube a veces repite un número fijo), contar desde que se detectó.
+                long desde = ahora - cancion.detectada;
+                relojPos = (posApp >= 0 && posApp < 30_000) ? Musica.posicion(mc) : desde;
+                ultimaPosApp = posApp;
             } else {
-                android.media.AudioManager am = (android.media.AudioManager)
-                        getContext().getSystemService(Context.AUDIO_SERVICE);
-                if (am.isMusicActive()) relojPos += ahora - relojUlt;  // pausado: el reloj se detiene
+                if (suena) relojPos += ahora - relojUlt;  // pausado: el reloj se detiene
+                // ¿La app avisó de un salto de verdad (adelantaste o retrocediste)? Resincronizar.
+                if (posApp >= 0 && Math.abs(posApp - ultimaPosApp) > 1500) {
+                    long nueva = Musica.posicion(mc);
+                    if (Math.abs(nueva - relojPos) > 3000) relojPos = nueva;
+                }
+                ultimaPosApp = posApp;
             }
             relojUlt = ahora;
-            boolean suena = ((android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE)).isMusicActive();
             naviBaile.setBailando(suena);
             long fin = cancion.tiempos.get(cancion.tiempos.size() - 1) + 15_000;
             if (relojPos > fin) {  // ya terminó la letra: no volver a abrirla para esta canción

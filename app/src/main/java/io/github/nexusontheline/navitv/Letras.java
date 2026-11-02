@@ -23,6 +23,8 @@ final class Letras {
     /** Una canción con su letra: tiempos en ms y líneas (y su traducción si hace falta). */
     static final class Cancion {
         String clave, titulo, artista;
+        /** Cuándo empezó a sonar (SystemClock.elapsedRealtime), para el reloj propio. */
+        long detectada;
         final List<Long> tiempos = new ArrayList<>();
         final List<String> lineas = new ArrayList<>();
         List<String> traduccion;  // null = no hace falta (ya está en español)
@@ -64,7 +66,14 @@ final class Letras {
                 cancion = limpio.substring(guion + 3).trim();
             }
             String q = (art.isEmpty() || cancion.toLowerCase().contains(art.toLowerCase()) ? "" : art + " ") + cancion;
-            JSONArray r = new JSONArray(Herramientas.get("https://lrclib.net/api/search?q=" + URLEncoder.encode(q, "UTF-8")));
+            JSONArray r = consultar("https://lrclib.net/api/search?q=" + URLEncoder.encode(q, "UTF-8"));
+            if (r.length() == 0 && !art.isEmpty()) {  // plan B: artista y canción por separado
+                r = consultar("https://lrclib.net/api/search?track_name=" + URLEncoder.encode(cancion, "UTF-8")
+                        + "&artist_name=" + URLEncoder.encode(art, "UTF-8"));
+            }
+            if (r.length() == 0) {  // plan C: solo el nombre de la canción
+                r = consultar("https://lrclib.net/api/search?track_name=" + URLEncoder.encode(cancion, "UTF-8"));
+            }
             JSONObject mejor = null;
             double mejorDif = Double.MAX_VALUE;
             for (int i = 0; i < r.length(); i++) {
@@ -106,6 +115,16 @@ final class Letras {
         } catch (Exception e) {
             Log.w(TAG, "buscar", e);
             return null;
+        }
+    }
+
+    /** Una búsqueda en LRCLIB; si falla (a veces da error), lista vacía. */
+    private static JSONArray consultar(String url) {
+        try {
+            return new JSONArray(Herramientas.get(url));
+        } catch (Exception e) {
+            Log.w(TAG, "LRCLIB falló: " + url + " (" + e.getClass().getSimpleName() + ")");
+            return new JSONArray();
         }
     }
 

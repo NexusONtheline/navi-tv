@@ -148,11 +148,13 @@ public class NaviAsistente extends VoiceInteractionService {
         if (!clave.equals(claveSonando)) {
             claveSonando = clave;
             cancionActual = null;
+            final long detectada = android.os.SystemClock.elapsedRealtime();
             Log.i(TAG, "suena: " + titulo + " · " + artista);
             red.execute(() -> {
                 Letras.Cancion c = Letras.buscar(titulo, artista, duracion);
                 if (c != null) {
                     c.clave = clave;
+                    c.detectada = detectada;
                     Letras.traducir(this, c);
                 }
                 h.post(() -> {
