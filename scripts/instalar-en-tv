@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Instala NAVI TV en una tele con Google TV / Android TV por ADB y la deja lista:
+# asistente del botón del micro, salvapantallas, permisos y tu clave de Gemini.
+#
+#   instalar-en-tv 192.168.1.50 [navi-tv.apk]     instalar / actualizar
+#   instalar-en-tv 192.168.1.50 --quitar          volver al asistente de Google
+#
+# Antes: en la tele, Ajustes → Sistema → Opciones para desarrolladores →
+# Depuración inalámbrica (o «Depuración por red») activada.
+set -euo pipefail
+
+TV="${1:?Uso: instalar-en-tv IP_DE_LA_TELE [navi-tv.apk | --quitar]}"
+[[ "$TV" == *:* ]] || TV="$TV:5555"
+P=io.github.nexusontheline.navitv
+GOOGLE=com.google.android.katniss/.search.serviceapi.KatnissVoiceInteractionService
+
+adb connect "$TV" >/dev/null
+echo "Si la tele pregunta «¿Permitir la depuración?», dale a Permitir siempre."
+adb -s "$TV" wait-for-device
+A=(adb -s "$TV" shell)
+
+if [ "${2:-}" = "--quitar" ]; then
+    "${A[@]}" settings put secure voice_interaction_service "$GOOGLE"
+    "${A[@]}" settings put secure assistant "$GOOGLE"
+    echo "Listo: el botón del micro vuelve a ser del asistente de Google."
+    echo "(Para quitar también la app: adb -s $TV uninstall $P)"
+    exit 0
+fi
+
+APK="${2:-navi-tv.apk}"
+if [ ! -f "$APK" ]; then
+    echo "Bajando la última versión de GitHub…"
+    url="$(curl -fsSL https://api.github.com/repos/NexusONtheline/navi-tv/releases \
+        | grep -o 'https://[^"]*/navi-tv.apk' | head -1)"
+    curl -fL -o navi-tv.apk "$url"
+    APK=navi-tv.apk
+fi
+
+echo "Instalando…"
+adb -s "$TV" install -r "$APK"
+
+echo "Permisos y ajustes…"
+"${A[@]}" pm grant $P android.permission.RECORD_AUDIO
+"${A[@]}" appops set $P RECORD_AUDIO allow
+"${A[@]}" cmd notification allow_listener $P/.Escucha || true
+"${A[@]}" settings put secure assist_structure_enabled 1
+"${A[@]}" settings put secure assist_screenshot_enabled 1
+"${A[@]}" settings put secure voice_interaction_service $P/.NaviAsistente
+"${A[@]}" settings put secure assistant $P/.NaviAsistente
+"${A[@]}" settings put secure screensaver_components $P/.Salvapantallas
+
+echo
+read -rsp "Tu clave gratis de Gemini (https://aistudio.google.com/apikey), o Enter para saltar: " CLAVE
+echo
+read -rp "Tu nombre (para que NAVI te llame así), o Enter: " NOMBRE
+read -rp "Tu ciudad, para el clima (ej. «Quito, Ecuador»), o Enter: " CIUDAD
+extras=()
+[ -n "$CLAVE" ] && extras+=(--es gemini_key "'$CLAVE'")
+[ -n "$NOMBRE" ] && extras+=(--es usuario "'$NOMBRE'")
+[ -n "$CIUDAD" ] && extras+=(--es ciudad "'$CIUDAD'")
+if [ ${#extras[@]} -gt 0 ]; then
+    "${A[@]}" "am start -n $P/.Ajustes ${extras[*]}" >/dev/null
+fi
+
+echo
+echo "¡Listo! Aprieta el botón del micro del control: debería salir la carita de NAVI."
