@@ -118,6 +118,13 @@ public class Ajustes extends Activity {
         c.guardar(this);
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        recibirDesdeLaptop(intent);
+        recreate();
+    }
+
     /** Desde la laptop: adb shell am start -n .../.Ajustes --es gemini_key ... --es ciudad ... */
     private void recibirDesdeLaptop(Intent in) {
         if (in == null || in.getExtras() == null) return;

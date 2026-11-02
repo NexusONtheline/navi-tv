@@ -180,6 +180,9 @@ public class Navi extends Activity {
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-EC");
         i.putExtra(RecognizerIntent.EXTRA_PROMPT, "Habla con NAVI");
+        // El de Google TV, que usa el micrófono del control (si no, Android pregunta cuál usar)
+        Intent tv = new Intent(i).setPackage("com.google.android.katniss");
+        if (tv.resolveActivity(getPackageManager()) != null) i = tv;
         try {
             estado.setText("escuchando…");
             startActivityForResult(i, VOZ);
@@ -210,6 +213,8 @@ public class Navi extends Activity {
         String t = campo.getText().toString().trim();
         if (t.isEmpty()) return;
         campo.setText("");
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(campo.getWindowToken(), 0);
         filaEscribir.setVisibility(View.GONE);
         hablar.requestFocus();
         enviar(t);

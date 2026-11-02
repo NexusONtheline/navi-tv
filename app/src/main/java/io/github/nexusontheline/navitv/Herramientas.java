@@ -153,6 +153,7 @@ public final class Herramientas {
 
     private String clima(String ciudad) throws Exception {
         if (ciudad == null || ciudad.trim().isEmpty()) ciudad = Conf.cargar(ctx).ciudad;
+        ciudad = ciudad.replace("'", "").replace("\"", "").trim();
         String nombre = ciudad.split(",")[0].trim();
         JSONObject geo = new JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?count=5&language=es&name="
                 + URLEncoder.encode(nombre, "UTF-8")));
