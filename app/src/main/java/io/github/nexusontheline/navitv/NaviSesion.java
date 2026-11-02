@@ -158,6 +158,11 @@ public class NaviSesion extends VoiceInteractionSession {
     private void escuchar() {
         if (voz != null) voz.stop();
         ui.removeCallbacks(irse);
+        if (getContext().checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            decirYIrse("No tengo permiso para usar el micrófono. Abre la app NAVI una vez y acéptalo.");
+            return;
+        }
         carita.setEstado(Carita.Estado.ESCUCHANDO);
         mostrar("…");
         if (oido == null) {

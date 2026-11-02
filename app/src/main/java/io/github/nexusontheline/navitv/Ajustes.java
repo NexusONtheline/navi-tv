@@ -99,6 +99,12 @@ public class Ajustes extends Activity {
         sv.addView(col);
         setContentView(sv);
         etiquetas.requestFocus();
+
+        // NAVI necesita el micrófono para escucharte cuando aprietas el micro del control
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 1);
+        }
     }
 
     private void guardar() {
