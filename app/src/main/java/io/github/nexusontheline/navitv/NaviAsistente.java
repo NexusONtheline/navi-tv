@@ -73,6 +73,43 @@ public class NaviAsistente extends VoiceInteractionService {
         Log.i(TAG, "lista");
     }
 
+    /**
+     * El servicio del control remoto (AtvRemote) arranca al asistente con un intent que trae
+     * el canal de audio del micro. Por ahora lo anotamos entero para entender su formato.
+     */
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null) {
+            Log.i(TAG, "onStartCommand: acción=" + intent.getAction() + " datos=" + intent.getData()
+                    + " componente=" + intent.getComponent());
+            registrar("", intent.getExtras());
+        }
+        return super.onStartCommand(intent, flags, startId);
+    }
+
+    private static void registrar(String prefijo, Bundle b) {
+        if (b == null) return;
+        try {
+            for (String k : b.keySet()) {
+                try {
+                    Object v = b.get(k);
+                    String extra = "";
+                    if (v instanceof android.os.IBinder) {
+                        try { extra = " descriptor=" + ((android.os.IBinder) v).getInterfaceDescriptor(); }
+                        catch (Exception e) { extra = " descriptor=?" + e; }
+                    }
+                    Log.i(TAG, "  extra " + prefijo + k + " = "
+                            + (v == null ? "null" : v.getClass().getName() + " " + v) + extra);
+                    if (v instanceof Bundle) registrar(prefijo + k + ".", (Bundle) v);
+                } catch (Throwable e) {
+                    Log.i(TAG, "  extra " + prefijo + k + " ilegible: " + e);
+                }
+            }
+        } catch (Throwable e) {
+            Log.i(TAG, "  extras ilegibles: " + e);
+        }
+    }
+
     @Override
     public void onShutdown() {
         listo = false;
