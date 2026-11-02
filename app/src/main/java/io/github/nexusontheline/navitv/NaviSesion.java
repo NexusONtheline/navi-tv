@@ -130,7 +130,6 @@ public class NaviSesion extends VoiceInteractionSession {
                 }
             });
         });
-        oido = crearOido();  // listo de antemano: cada milisegundo cuenta al apretar el micro
     }
 
     @Override
@@ -395,7 +394,10 @@ public class NaviSesion extends VoiceInteractionSession {
             return;
         }
         carita.setEstado(Carita.Estado.REPOSO);  // se pone rosa cuando ya escucha de verdad
-        if (oido == null) oido = crearOido();
+        // Un oído nuevo cada vez: el control remoto solo conecta su micrófono (el «puente de
+        // audio») cuando el reconocedor se conecta desde cero; si se reutiliza, llega silencio.
+        if (oido != null) oido.destroy();
+        oido = crearOido();
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-EC");
@@ -484,6 +486,7 @@ public class NaviSesion extends VoiceInteractionSession {
         final int estaVez = vez;
         final Bitmap pantalla = captura;
         final String app = appActual;
+        final long inicio = SystemClock.elapsedRealtime();
         hilo.execute(() -> {
             String respuesta;
             try {
@@ -492,6 +495,7 @@ public class NaviSesion extends VoiceInteractionSession {
                 respuesta = f.getMessage();
             }
             final String r = respuesta;
+            Log.i(TAG, "pensó en " + (SystemClock.elapsedRealtime() - inicio) + " ms");
             ui.post(() -> {
                 if (estaVez != vez) return;  // la cerraste mientras pensaba
                 pensando = false;
