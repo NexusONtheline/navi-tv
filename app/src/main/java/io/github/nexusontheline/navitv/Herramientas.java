@@ -70,6 +70,10 @@ public final class Herramientas {
                 .put("description", "Etiquetas que nunca deben salir, separadas por espacio"));
         p.put("segundos", new JSONObject().put("type", "integer").put("description", "Segundos por imagen"));
         p.put("ver_ahora", new JSONObject().put("type", "boolean").put("description", "Mostrarlo ya"));
+        d.put(funcion("letras",
+                "Modo letra (karaoke abajo cuando suena una canción). quitar = esconder la letra de la "
+                        + "canción actual; poner = volver a mostrarla; desactivar = no mostrar letras nunca; activar = sí.",
+                props("accion", "string", "quitar, poner, desactivar o activar"), "accion"));
         d.put(funcion("aparecer_sola",
                 "Activa o desactiva que NAVI aparezca sola en la pantalla a comentar lo que ve y a saludar al prender la tele.",
                 new JSONObject().put("type", "object").put("properties", new JSONObject()
@@ -95,6 +99,30 @@ public final class Herramientas {
                 case "clima": return clima(a.optString("ciudad"));
                 case "abrir_ajustes": return abrirAjustes(a.optString("seccion"));
                 case "salvapantallas": return salvapantallas(a);
+                case "letras": {
+                    Conf c = Conf.cargar(ctx);
+                    Letras.Cancion actual = NaviAsistente.cancionActual;
+                    switch (a.optString("accion")) {
+                        case "quitar":
+                            NaviSesion.letraQuitada = actual != null ? actual.clave : "";
+                            return actual != null ? "Listo, ya no muestro la letra de esta canción."
+                                    : "Ahora no hay ninguna letra en pantalla.";
+                        case "poner":
+                            NaviSesion.letraQuitada = "";
+                            c.letras = true;
+                            c.guardar(ctx);
+                            return actual != null ? "Listo, la letra vuelve en un momento."
+                                    : "No encontré la letra de lo que suena (o no es una canción).";
+                        case "desactivar":
+                            c.letras = false;
+                            c.guardar(ctx);
+                            return "Listo, ya no mostraré letras.";
+                        default:
+                            c.letras = true;
+                            c.guardar(ctx);
+                            return "Listo, mostraré la letra cuando suene una canción.";
+                    }
+                }
                 case "aparecer_sola": {
                     Conf c = Conf.cargar(ctx);
                     c.proactiva = a.optBoolean("activar", true);

@@ -33,6 +33,7 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AccelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -58,6 +59,9 @@ public class NaviSesion extends VoiceInteractionSession {
     static final String MIRAR = "mirar";
     static final String MIRAR_YA = "mirar_ya";  // pruebas: comenta sí o sí
     static final String SALUDO = "saludo";
+    static final String LETRA = "letra";      // karaoke de lo que suena
+    /** Canción (clave) cuya letra pediste quitar: no volver a mostrarla. */
+    static volatile String letraQuitada = "";
 
     /** Para el reloj interno (NaviAsistente): no aparecer encima de sí misma ni muy seguido. */
     static volatile boolean visible;
@@ -66,7 +70,7 @@ public class NaviSesion extends VoiceInteractionSession {
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService hilo = Executors.newSingleThreadExecutor();
     private final Random azar = new Random();
-    private final Runnable irse = this::hide;
+    private final Runnable irse = this::irseConAnimacion;
     private final Runnable sinCaptura = () -> { if (this.esperandoCaptura) observarAhora(); };
 
     private float d;
@@ -171,6 +175,7 @@ public class NaviSesion extends VoiceInteractionSession {
 
         raiz.addView(actor, new FrameLayout.LayoutParams(px(170), px(100), Gravity.TOP | Gravity.START));
         ponerEnCasa();
+        crearBarraLetra(ctx, raiz);
         return raiz;
     }
 
@@ -206,8 +211,16 @@ public class NaviSesion extends VoiceInteractionSession {
         pararAnimaciones();
         if (voz != null) voz.stop();
         modo = args != null ? args.getString(MODO, "") : "";
+        barra.setVisibility(View.GONE);
 
         Window w = getWindow().getWindow();
+        if (LETRA.equals(modo)) {  // karaoke: no quita el control y no tapa casi nada
+            if (w != null) w.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
+            actor.setVisibility(View.INVISIBLE);
+            empezarLetra();
+            return;
+        }
         if (sola()) {
             // Mira en silencio sin quitarte el control
             if (w != null) w.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -223,6 +236,7 @@ public class NaviSesion extends VoiceInteractionSession {
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE);
         esperandoCaptura = false;
         actor.setVisibility(View.VISIBLE);
+        carita.encender();
         objeto.setVisibility(View.GONE);
         carita.setReaccion(Carita.Reaccion.NORMAL);
         ponerEnCasa();
@@ -262,6 +276,8 @@ public class NaviSesion extends VoiceInteractionSession {
         esperandoCaptura = false;
         ui.removeCallbacksAndMessages(null);
         pararAnimaciones();
+        if (barra != null) barra.setVisibility(View.GONE);
+        if (naviBaile != null) naviBaile.setBailando(false);
         if (oido != null) oido.cancel();
         oidoPropio.cancelar();
         escuchando = false;
@@ -288,6 +304,132 @@ public class NaviSesion extends VoiceInteractionSession {
             return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    // ------------------------------------------------------------ modo letra (karaoke)
+
+    private LinearLayout barra;
+    private Carita naviBaile;
+    private TextView lineaActual, lineaTraduccion, lineaSiguiente;
+    private Letras.Cancion cancion;
+    private int indiceMostrado = -2;
+    private long sinSonarDesde;
+
+    private void crearBarraLetra(Context ctx, FrameLayout raiz) {
+        barra = new LinearLayout(ctx);
+        barra.setOrientation(LinearLayout.HORIZONTAL);
+        barra.setGravity(Gravity.CENTER_VERTICAL);
+        android.graphics.drawable.GradientDrawable fondo = new android.graphics.drawable.GradientDrawable();
+        fondo.setColor(0xB0101018);
+        fondo.setCornerRadius(px(18));
+        fondo.setStroke(Math.max(1, px(1)), 0x33FFFFFF);
+        barra.setBackground(fondo);
+        barra.setPadding(px(14), px(10), px(22), px(10));
+        barra.setClipChildren(false);
+
+        naviBaile = new Carita(ctx);
+        barra.addView(naviBaile, new LinearLayout.LayoutParams(px(62), px(54)));
+
+        LinearLayout textos = new LinearLayout(ctx);
+        textos.setOrientation(LinearLayout.VERTICAL);
+        textos.setPadding(px(14), 0, 0, 0);
+        lineaActual = texto(ctx, 21, Color.WHITE, true);
+        lineaTraduccion = texto(ctx, 14, 0xFFD9B8FF, false);
+        lineaSiguiente = texto(ctx, 14, 0x88FFFFFF, false);
+        textos.addView(lineaActual);
+        textos.addView(lineaTraduccion);
+        textos.addView(lineaSiguiente);
+        barra.addView(textos, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                Math.round(anchoPantalla * 0.66f), -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        lp.bottomMargin = px(34);
+        barra.setVisibility(View.GONE);
+        raiz.addView(barra, lp);
+    }
+
+    private static TextView texto(Context ctx, float sp, int color, boolean negrita) {
+        TextView t = new TextView(ctx);
+        t.setTextSize(sp);
+        t.setTextColor(color);
+        t.setSingleLine(true);
+        t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        t.setShadowLayer(6, 0, 0, 0xAA000000);
+        if (negrita) t.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        return t;
+    }
+
+    private void empezarLetra() {
+        cancion = NaviAsistente.cancionActual;
+        if (cancion == null) {
+            hide();
+            return;
+        }
+        indiceMostrado = -2;
+        sinSonarDesde = 0;
+        lineaActual.setText("♪  " + cancion.titulo + " · " + cancion.artista);
+        lineaTraduccion.setVisibility(View.GONE);
+        lineaSiguiente.setText("");
+        barra.setAlpha(0f);
+        barra.setTranslationY(px(40));
+        barra.setVisibility(View.VISIBLE);
+        barra.animate().alpha(1f).translationY(0).setDuration(600).start();
+        naviBaile.setReaccion(Carita.Reaccion.FELIZ);
+        naviBaile.setBailando(true);
+        naviBaile.encender();
+        ui.post(tickLetra);
+    }
+
+    private final Runnable tickLetra = new Runnable() {
+        @Override public void run() {
+            if (!visible || !LETRA.equals(modo) || cancion == null) return;
+            android.media.session.MediaController mc = Musica.sonando(getContext());
+            String clave = null;
+            if (mc != null) {
+                android.media.MediaMetadata md = mc.getMetadata();
+                clave = Musica.texto(md, android.media.MediaMetadata.METADATA_KEY_TITLE,
+                        android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE) + "|"
+                        + Musica.texto(md, android.media.MediaMetadata.METADATA_KEY_ARTIST,
+                        android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+            }
+            if (clave != null && !clave.equals(cancion.clave)) {  // cambió de canción
+                cerrarLetra();
+                return;
+            }
+            if (mc == null) {  // pausa o terminó: esperar un poco antes de irse
+                naviBaile.setBailando(false);
+                if (sinSonarDesde == 0) sinSonarDesde = SystemClock.elapsedRealtime();
+                if (SystemClock.elapsedRealtime() - sinSonarDesde > 5000) {
+                    cerrarLetra();
+                    return;
+                }
+                ui.postDelayed(this, 300);
+                return;
+            }
+            sinSonarDesde = 0;
+            naviBaile.setBailando(true);
+            int i = cancion.indice(Musica.posicion(mc) + 250);  // un pelín antes, como karaoke
+            if (i != indiceMostrado && i >= 0) {
+                indiceMostrado = i;
+                String actual = cancion.lineas.get(i);
+                lineaActual.setText(actual.isEmpty() ? "♪" : actual);
+                String tr = cancion.traduccion != null ? cancion.traduccion.get(i) : "";
+                boolean hayTr = tr != null && !tr.isEmpty() && !tr.equalsIgnoreCase(actual);
+                lineaTraduccion.setText(hayTr ? tr : "");
+                lineaTraduccion.setVisibility(hayTr ? View.VISIBLE : View.GONE);
+                lineaSiguiente.setText(i + 1 < cancion.lineas.size() ? cancion.lineas.get(i + 1) : "");
+                lineaActual.setAlpha(0.3f);
+                lineaActual.setTranslationY(px(6));
+                lineaActual.animate().alpha(1f).translationY(0).setDuration(220).start();
+            }
+            ui.postDelayed(this, 120);
+        }
+    };
+
+    /** La franja baja y NAVI se apaga como tele vieja. */
+    private void cerrarLetra() {
+        naviBaile.setBailando(false);
+        barra.animate().alpha(0f).translationY(px(40)).setDuration(500).withEndAction(this::hide).start();
     }
 
     // ------------------------------------------------------------ aparecer sola
@@ -337,6 +479,7 @@ public class NaviSesion extends VoiceInteractionSession {
         actor.setTranslationX(desdeDerecha ? anchoPantalla + px(20) : -px(190));
         actor.setTranslationY(destinoY);
         actor.setVisibility(View.VISIBLE);
+        carita.encender();
 
         actor.animate().translationX(destinoX).setDuration(1100)
                 .setInterpolator(new OvershootInterpolator(1.1f))
@@ -359,24 +502,51 @@ public class NaviSesion extends VoiceInteractionSession {
     }
 
     /** Mientras habla, se pasea un poquito. */
+    /** Mientras habla, se pasea por varios puntos cerca de los bordes, flotando. */
     private void pasear(float x, float y) {
-        float hacia = x > anchoPantalla / 2f ? -px(140) : px(140);
-        paseo = ValueAnimator.ofFloat(0f, 1f);
-        paseo.setDuration(5000);
+        int puntos = 3 + azar.nextInt(2);
+        final float[] xs = new float[puntos + 1], ys = new float[puntos + 1];
+        xs[0] = x;
+        ys[0] = y;
+        boolean abajo = y > altoPantalla / 2f;
+        for (int k = 1; k <= puntos; k++) {
+            xs[k] = px(40) + azar.nextFloat() * (anchoPantalla - px(170) - px(80));
+            // casi siempre por la misma franja (arriba o abajo); a veces cruza
+            boolean franjaAbajo = azar.nextInt(4) == 0 ? !abajo : abajo;
+            ys[k] = franjaAbajo ? altoPantalla - px(100) - px(30) - azar.nextFloat() * px(60)
+                    : px(90) + azar.nextFloat() * px(60);
+        }
+        paseo = ValueAnimator.ofFloat(0f, puntos);
+        paseo.setDuration(puntos * 3200L);
         paseo.setRepeatMode(ValueAnimator.REVERSE);
         paseo.setRepeatCount(ValueAnimator.INFINITE);
-        paseo.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        paseo.setInterpolator(new LinearInterpolator());
         paseo.addUpdateListener(a -> {
             float f = (float) a.getAnimatedValue();
-            actor.setTranslationX(x + hacia * f);
-            actor.setTranslationY(y - px(14) * (float) Math.sin(f * Math.PI));
+            int k = Math.min(puntos - 1, (int) f);
+            float u = f - k;
+            float suave = (float) (0.5 - 0.5 * Math.cos(Math.PI * u));  // acelera y frena en cada punto
+            actor.setTranslationX(xs[k] + (xs[k + 1] - xs[k]) * suave);
+            actor.setTranslationY(ys[k] + (ys[k + 1] - ys[k]) * suave - px(16) * (float) Math.sin(Math.PI * u));
+            actor.setRotation((float) Math.sin(Math.PI * u) * ((xs[k + 1] > xs[k]) ? 6 : -6));  // se inclina al moverse
         });
         paseo.start();
+    }
+
+    /** Con el micro: se apaga como una tele vieja. Cuando salió sola: se va flotando por el borde. */
+    private void irseConAnimacion() {
+        if (!visible || actor == null || actor.getVisibility() != View.VISIBLE) {
+            hide();
+            return;
+        }
+        if (sola()) salir();
+        else carita.apagar(this::hide);
     }
 
     /** Se va por el borde más cercano y se cierra. */
     private void salir() {
         pararAnimaciones();
+        actor.setRotation(0);
         boolean derecha = actor.getTranslationX() > anchoPantalla / 2f;
         actor.animate().translationX(derecha ? anchoPantalla + px(20) : -px(190))
                 .setDuration(900).setInterpolator(new AccelerateInterpolator())

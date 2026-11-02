@@ -80,14 +80,73 @@ public class Carita extends View {
         invalidate();
     }
 
+    // ------------------------------------------------------------ animaciones
+
+    private static final long DURACION_TELE = 480;
+    private long teleInicio = -1;      // animación de encender/apagar en curso
+    private boolean teleEncender;
+    private boolean apagada;           // terminó de apagarse: no dibujar nada
+    private Runnable teleFin;
+    private boolean bailando;
+
+    /** Se enciende como una tele vieja: un puntito, una línea y la pantalla. */
+    public void encender() {
+        apagada = false;
+        teleEncender = true;
+        teleFin = null;
+        teleInicio = SystemClock.uptimeMillis();
+        invalidate();
+    }
+
+    /** Se apaga como una tele vieja y luego avisa (para cerrarse). */
+    public void apagar(Runnable alTerminar) {
+        teleEncender = false;
+        teleFin = alTerminar;
+        teleInicio = SystemClock.uptimeMillis();
+        invalidate();
+    }
+
+    /** Baila al ritmo (más o menos 120 por minuto) con notitas musicales. */
+    public void setBailando(boolean b) {
+        bailando = b;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas c) {
         float t = (SystemClock.uptimeMillis() - inicio) / 1000f;
         float arriba = colorGorro != 0 ? ARRIBA : 0;
         float escala = Math.min(getWidth() / ANCHO, getHeight() / (ALTO + arriba));
+        if (apagada) {
+            postInvalidateOnAnimation();
+            return;
+        }
         c.save();
         c.scale(escala, escala);
         c.translate(0, arriba);
+        float destello = 0;
+        if (teleInicio >= 0) {
+            float p = Math.min(1f, (SystemClock.uptimeMillis() - teleInicio) / (float) DURACION_TELE);
+            float f = teleEncender ? p : 1 - p;
+            float sx = f < 0.35f ? Math.max(0.02f, f / 0.35f) : 1f;
+            float sy = f < 0.35f ? 0.03f : 0.03f + 0.97f * ((f - 0.35f) / 0.65f);
+            c.scale(sx, sy, ANCHO / 2, PY + PH / 2);
+            destello = f < 0.5f ? 1 - f * 2 : 0;
+            if (p >= 1f) {
+                teleInicio = -1;
+                if (!teleEncender) {
+                    apagada = true;
+                    Runnable fin = teleFin;
+                    teleFin = null;
+                    if (fin != null) post(fin);
+                }
+            }
+        }
+        if (bailando) {  // rebote y balanceo al ritmo
+            float beat = t * 2f;  // 2 golpes por segundo
+            c.translate(0, -Math.abs((float) Math.sin(Math.PI * beat)) * 7);
+            c.rotate((float) Math.sin(Math.PI * beat) * 9, ANCHO / 2, PY + PH);
+        }
         boolean dormida = estado == Estado.DORMIDA;
         // flota (más lento y suave cuando duerme, como respirando)
         c.translate(0, dormida ? (float) Math.sin(t * 0.8) * 1.5f : (float) Math.sin(t * 1.6) * 2.5f);
@@ -144,6 +203,12 @@ public class Carita extends View {
 
         if (colorGorro != 0) gorro(c, t);
         if (dormida) zetas(c, t, color);
+        if (bailando) notitas(c, t, color);
+        if (destello > 0) {  // la línea blanca de una tele vieja al encender/apagar
+            relleno(conAlfa(Color.WHITE, destello));
+            r.set(PX - 3, PY - 3, PX + PW + 3, PY + PH + 3);
+            c.drawRoundRect(r, 17, 17, p);
+        }
 
         c.restore();
         postInvalidateOnAnimation();
@@ -289,6 +354,19 @@ public class Carita extends View {
         relleno(conAlfa(color, 0.7f));
         r.set(bx - 3, by - abre, bx + 3, by + abre);
         c.drawOval(r, p);
+    }
+
+    /** Notitas musicales que salen bailando. */
+    private void notitas(Canvas c, float t, int color) {
+        p.setStyle(Paint.Style.FILL);
+        String[] notas = {"♪", "♫", "♪"};
+        for (int i = 0; i < 3; i++) {
+            float fase = (t * 0.45f + i / 3f) % 1f;
+            p.setTextSize(11 + fase * 7);
+            p.setColor(conAlfa(i == 1 ? ROSA : color, (1 - fase) * 0.95f));
+            float x = (i % 2 == 0 ? PX - 10 - fase * 10 : PX + PW + 2 + fase * 10);
+            c.drawText(notas[i], x, PY + 30 - fase * 40, p);
+        }
     }
 
     /** Zetas que suben flotando desde la esquina. */

@@ -27,15 +27,21 @@ public class NaviAsistente extends VoiceInteractionService {
     public static final String PROBAR = "io.github.nexusontheline.navitv.PROBAR";
 
     private static final long MIN = 60_000L;
-    private static final long MIRAR_MIN = 10 * MIN, MIRAR_MAX = 25 * MIN;
+    private static final long MIRAR_MIN = 7 * MIN, MIRAR_MAX = 18 * MIN;
     /** Entre una aparición y otra, al menos esto. */
-    private static final long PAUSA_ENTRE_APARICIONES = 20 * MIN;
+    private static final long PAUSA_ENTRE_APARICIONES = 12 * MIN;
 
     private final Handler h = new Handler(Looper.getMainLooper());
     private final Random azar = new Random();
     private final Runnable mirar = this::mirar;
     private final Runnable saludar = () -> aparecer(NaviSesion.SALUDO);
     private boolean listo;
+
+    // ---- modo letra: lo que suena y su letra (la usa NaviSesion)
+    static volatile Letras.Cancion cancionActual;
+    private String claveSonando = "";
+    private final java.util.concurrent.ExecutorService red = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final Runnable vigilarMusica = this::vigilarMusica;
 
     private final BroadcastReceiver receptor = new BroadcastReceiver() {
         @Override
@@ -70,6 +76,7 @@ public class NaviAsistente extends VoiceInteractionService {
         // Recién encendida la tele: saludar
         if (SystemClock.elapsedRealtime() < 5 * MIN) h.postDelayed(saludar, 15000);
         programarMirada();
+        h.postDelayed(vigilarMusica, 5000);
         Log.i(TAG, "lista");
     }
 
@@ -119,6 +126,56 @@ public class NaviAsistente extends VoiceInteractionService {
         } catch (IllegalArgumentException ignored) {
         }
         super.onShutdown();
+    }
+
+    /** Cada 3 s: ¿suena una canción? Si es nueva, buscar su letra; si hay letra, mostrarla. */
+    private void vigilarMusica() {
+        h.postDelayed(vigilarMusica, 3000);
+        if (!listo || !Conf.cargar(this).letras) return;
+        android.media.session.MediaController mc = Musica.sonando(this);
+        if (mc == null) {
+            claveSonando = "";
+            return;
+        }
+        android.media.MediaMetadata md = mc.getMetadata();
+        String titulo = Musica.texto(md, android.media.MediaMetadata.METADATA_KEY_TITLE,
+                android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+        String artista = Musica.texto(md, android.media.MediaMetadata.METADATA_KEY_ARTIST,
+                android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+        long duracion = md.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION);
+        String clave = titulo + "|" + artista;
+        if (titulo.isEmpty()) return;
+        if (!clave.equals(claveSonando)) {
+            claveSonando = clave;
+            cancionActual = null;
+            Log.i(TAG, "suena: " + titulo + " · " + artista);
+            red.execute(() -> {
+                Letras.Cancion c = Letras.buscar(titulo, artista, duracion);
+                if (c != null) {
+                    c.clave = clave;
+                    Letras.traducir(this, c);
+                }
+                h.post(() -> {
+                    if (!clave.equals(claveSonando)) return;  // ya cambió de canción
+                    cancionActual = c;
+                    if (c != null) mostrarLetra();
+                });
+            });
+        } else if (cancionActual != null && !NaviSesion.visible && !clave.equals(NaviSesion.letraQuitada)) {
+            mostrarLetra();  // p. ej. después de hablarle con el micro, vuelve la letra
+        }
+    }
+
+    private void mostrarLetra() {
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (!pm.isInteractive() || Salvapantallas.activo || NaviSesion.visible) return;
+        Bundle args = new Bundle();
+        args.putString(NaviSesion.MODO, NaviSesion.LETRA);
+        try {
+            showSession(args, VoiceInteractionSession.SHOW_WITH_ASSIST);
+        } catch (Exception e) {
+            Log.w(TAG, "no pude mostrar la letra", e);
+        }
     }
 
     private void programarMirada() {

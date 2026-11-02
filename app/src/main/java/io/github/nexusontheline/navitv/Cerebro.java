@@ -374,6 +374,45 @@ public final class Cerebro {
         }
     }
 
+    /**
+     * Traduce la letra de una canción al español, línea por línea.
+     * Devuelve null si ya está en español (no hace falta traducir).
+     */
+    public List<String> traducirLetra(List<String> lineas) throws Exception {
+        Conf conf = Conf.cargar(ctx);
+        if (conf.geminiKey.isEmpty()) return null;
+        JSONArray entrada = new JSONArray();
+        for (String l : lineas) entrada.put(l);
+        String pedido = "Esta es la letra de una canción, una línea por elemento. Si ya está en español, "
+                + "responde espanol=true y traduccion vacía. Si no, traduce cada línea al español latino "
+                + "natural (que suene bien, no literal), conservando el MISMO número de elementos y el orden; "
+                + "las líneas vacías o de sonidos (oh, yeah) déjalas igual o vacías.\n" + entrada;
+        JSONObject esquema = new JSONObject().put("type", "OBJECT")
+                .put("properties", new JSONObject()
+                        .put("espanol", new JSONObject().put("type", "BOOLEAN"))
+                        .put("traduccion", new JSONObject().put("type", "ARRAY")
+                                .put("items", new JSONObject().put("type", "STRING"))))
+                .put("required", new JSONArray().put("espanol").put("traduccion"));
+        JSONObject cuerpo = new JSONObject()
+                .put("contents", new JSONArray().put(new JSONObject().put("role", "user")
+                        .put("parts", new JSONArray().put(new JSONObject().put("text", pedido)))))
+                .put("generationConfig", new JSONObject().put("responseMimeType", "application/json")
+                        .put("responseSchema", esquema));
+        JSONObject r = post(API + conf.modelo + ":generateContent", conf.geminiKey, cuerpo.toString());
+        JSONArray p = r.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+        StringBuilder t = new StringBuilder();
+        for (int i = 0; i < p.length(); i++) {
+            if (!p.getJSONObject(i).optBoolean("thought")) t.append(p.getJSONObject(i).optString("text"));
+        }
+        JSONObject j = new JSONObject(t.toString());
+        if (j.optBoolean("espanol")) return null;
+        JSONArray tr = j.getJSONArray("traduccion");
+        List<String> salida = new ArrayList<>();
+        for (int i = 0; i < tr.length(); i++) salida.add(tr.optString(i));
+        Log.i(TAG, "letra traducida: " + salida.size() + " de " + lineas.size() + " líneas");
+        return salida;
+    }
+
     /** Para que, si luego le habla con el micro, NAVI sepa lo que acaba de decir sola. */
     private synchronized void recordarComentario(String frase, boolean saludo) {
         try {

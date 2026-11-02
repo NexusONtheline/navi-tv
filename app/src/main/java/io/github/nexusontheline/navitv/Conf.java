@@ -28,6 +28,8 @@ public final class Conf {
     public float tono;
     /** NAVI aparece sola (saludo al prender y comentarios al azar). */
     public boolean proactiva;
+    /** Modo letra: muestra la letra (karaoke) cuando suena una canción. */
+    public boolean letras;
 
     private Conf() {}
 
@@ -54,6 +56,7 @@ public final class Conf {
         c.voz = p.getString("voz", "");
         c.tono = p.getFloat("tono", 1.0f);
         c.proactiva = p.getBoolean("proactiva", true);
+        c.letras = p.getBoolean("letras", true);
         return c;
     }
 
@@ -75,6 +78,7 @@ public final class Conf {
                 .putString("sobre_tele", sobreTele.trim())
                 .putFloat("tono", tono)
                 .putBoolean("proactiva", proactiva)
+                .putBoolean("letras", letras)
                 .apply();
     }
 }
