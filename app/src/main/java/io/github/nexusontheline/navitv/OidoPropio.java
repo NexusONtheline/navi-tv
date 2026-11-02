@@ -151,11 +151,10 @@ final class OidoPropio {
                 pcm.write(bytes.array(), 0, n * 2);
                 trozosReales++;
                 if (trozosReales % 10 == 0) Log.i(TAG, "nivel " + Math.round(v) + " (ruido " + Math.round(ruido) + ")");
-                if (trozosReales <= 3) {  // ~150 ms para medir el fondo
-                    ruido = Math.max(ruido, v);
-                    continue;
-                }
-                double umbral = Math.max(ruido * 3, 700);
+                // Fondo = el nivel más bajo oído (el silencio entre palabras), no lo primero que
+                // llega: muchas veces ya estás hablando cuando el control conecta el micro.
+                ruido = trozosReales == 1 ? v : Math.min(ruido, v);
+                double umbral = Math.max(ruido * 4, 700);
                 if (v > umbral) {
                     voz = true;
                     silencioMs = 0;
