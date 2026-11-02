@@ -149,6 +149,8 @@ public class Ajustes extends Activity {
         if (in.hasExtra("usuario")) { c.usuario = in.getStringExtra("usuario"); algo = true; }
         if (in.hasExtra("ciudad")) { c.ciudad = in.getStringExtra("ciudad"); algo = true; }
         if (in.hasExtra("voz")) { c.voz = in.getStringExtra("voz"); algo = true; }
+        if (in.hasExtra("widgets")) { c.widgets = !"false".equals(in.getStringExtra("widgets")); algo = true; }
+        if (in.hasExtra("reloj")) { c.mostrarReloj = !"false".equals(in.getStringExtra("reloj")); algo = true; }
         if (in.hasExtra("tono")) {
             try { c.tono = Float.parseFloat(in.getStringExtra("tono")); algo = true; } catch (Exception ignored) {}
         }
