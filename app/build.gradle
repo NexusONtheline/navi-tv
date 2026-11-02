@@ -10,8 +10,8 @@ android {
         applicationId 'io.github.nexusontheline.navitv'
         minSdk 21
         targetSdk 34
-        versionCode 38
-        versionName '0.10.4'
+        versionCode 40
+        versionName '0.10.5'
     }
 
     // La firma vive fuera del repo: GitHub la recibe como secreto.
