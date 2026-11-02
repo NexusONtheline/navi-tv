@@ -114,11 +114,12 @@ final class Tablero {
             tarjetaAnime = tarjeta();
             tarjetaAnime.addView(etiqueta("PRÓXIMOS EPISODIOS"));
             animeLista = texto("", 13, Color.WHITE);
+            animeLista.setHorizontallyScrolling(false);
             animeLista.setLineSpacing(px(3), 1f);
             tarjetaAnime.addView(animeLista);
             izqArriba.addView(tarjetaAnime, conMargen());
             ocultar(tarjetaClima, tarjetaAnime);
-            raiz.addView(izqArriba, posicion(Gravity.TOP | Gravity.START, m, px(260)));
+            raiz.addView(izqArriba, posicion(Gravity.TOP | Gravity.START, m, px(290)));
 
             // Arriba a la derecha: ahora suena y el gif
             LinearLayout derArriba = columna();
@@ -357,18 +358,16 @@ final class Tablero {
                     List<JSONObject> top = new ArrayList<>(buenas.subList(0, Math.min(4, buenas.size())));
                     top.sort((a, b) -> Long.compare(a.optLong("airingAt"), b.optLong("airingAt")));
                     SimpleDateFormat hora = new SimpleDateFormat("HH:mm", Locale.ROOT);
-                    SimpleDateFormat dia = new SimpleDateFormat("yyyyMMdd", Locale.ROOT);
-                    String hoy = dia.format(new Date());
                     StringBuilder s = new StringBuilder();
                     for (JSONObject a : top) {
                         JSONObject t = a.getJSONObject("media").getJSONObject("title");
                         String titulo = t.optString("english");
                         if (titulo.isEmpty() || titulo.equals("null")) titulo = t.optString("romaji");
-                        if (titulo.length() > 24) titulo = titulo.substring(0, 23).trim() + "…";
+                        if (titulo.length() > 22) titulo = titulo.substring(0, 21).trim() + "…";
                         if (s.length() > 0) s.append('\n');
                         Date cuando = new Date(a.optLong("airingAt") * 1000);
-                        s.append(dia.format(cuando).equals(hoy) ? "" : "mañ ").append(hora.format(cuando)).append("  ")
-                                .append(titulo).append(" · ep ").append(a.optInt("episode"));
+                        s.append(hora.format(cuando)).append("  ").append(titulo)
+                                .append("  #").append(a.optInt("episode"));
                     }
                     String texto = s.toString();
                     ui.post(() -> {
