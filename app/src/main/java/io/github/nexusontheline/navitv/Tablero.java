@@ -40,7 +40,6 @@ import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -113,7 +112,7 @@ final class Tablero {
             izqArriba.addView(tarjetaClima, conMargen());
 
             tarjetaAnime = tarjeta();
-            tarjetaAnime.addView(etiqueta("ANIME DE HOY"));
+            tarjetaAnime.addView(etiqueta("PRÓXIMOS EPISODIOS"));
             animeLista = texto("", 13, Color.WHITE);
             animeLista.setLineSpacing(px(3), 1f);
             tarjetaAnime.addView(animeLista);
@@ -200,12 +199,12 @@ final class Tablero {
             LinearLayout fila = new LinearLayout(ctx);
             fila.setGravity(Gravity.BOTTOM);
             fila.setClipChildren(false);
-            naviCosa = texto("", 22, Color.WHITE);
+            naviCosa = texto("", 28, Color.WHITE);
             naviCosa.setShadowLayer(8, 0, 0, Color.BLACK);
             fila.addView(naviCosa);
             navi = new Carita(ctx);
             navi.setEstado(Carita.Estado.DORMIDA);
-            fila.addView(navi, new LinearLayout.LayoutParams(px(84), px(95)));
+            fila.addView(navi, new LinearLayout.LayoutParams(px(104), px(118)));
             grupo.addView(fila);
             LinearLayout.LayoutParams lpGrupo = new LinearLayout.LayoutParams(-2, -2);
             lpGrupo.rightMargin = px(18);
@@ -338,11 +337,8 @@ final class Tablero {
             if (!activo) return;
             red.execute(() -> {
                 try {
-                    Calendar cal = Calendar.getInstance();
-                    cal.set(Calendar.HOUR_OF_DAY, 0);
-                    cal.set(Calendar.MINUTE, 0);
-                    cal.set(Calendar.SECOND, 0);
-                    long ini = cal.getTimeInMillis() / 1000;
+                    // Los próximos episodios (de ahora a 24 h)
+                    long ini = System.currentTimeMillis() / 1000;
                     long fin = ini + 86400;
                     String q = "query{Page(perPage:30){airingSchedules(airingAt_greater:" + ini
                             + ",airingAt_lesser:" + fin + ",sort:TIME){airingAt episode media{"
@@ -361,14 +357,17 @@ final class Tablero {
                     List<JSONObject> top = new ArrayList<>(buenas.subList(0, Math.min(4, buenas.size())));
                     top.sort((a, b) -> Long.compare(a.optLong("airingAt"), b.optLong("airingAt")));
                     SimpleDateFormat hora = new SimpleDateFormat("HH:mm", Locale.ROOT);
+                    SimpleDateFormat dia = new SimpleDateFormat("yyyyMMdd", Locale.ROOT);
+                    String hoy = dia.format(new Date());
                     StringBuilder s = new StringBuilder();
                     for (JSONObject a : top) {
                         JSONObject t = a.getJSONObject("media").getJSONObject("title");
                         String titulo = t.optString("english");
                         if (titulo.isEmpty() || titulo.equals("null")) titulo = t.optString("romaji");
-                        if (titulo.length() > 30) titulo = titulo.substring(0, 29) + "…";
+                        if (titulo.length() > 24) titulo = titulo.substring(0, 23).trim() + "…";
                         if (s.length() > 0) s.append('\n');
-                        s.append(hora.format(new Date(a.optLong("airingAt") * 1000))).append("  ")
+                        Date cuando = new Date(a.optLong("airingAt") * 1000);
+                        s.append(dia.format(cuando).equals(hoy) ? "" : "mañ ").append(hora.format(cuando)).append("  ")
                                 .append(titulo).append(" · ep ").append(a.optInt("episode"));
                     }
                     String texto = s.toString();
@@ -583,7 +582,7 @@ final class Tablero {
         @Override public void run() {
             if (!activo) return;
             int color = GORROS[azar.nextInt(GORROS.length)];
-            navi.setGorro(azar.nextInt(4) == 0 ? 0 : color, azar.nextBoolean());  // a veces sin gorro
+            navi.setGorro(color, azar.nextBoolean());  // siempre con gorrito, de colores distintos
             naviCosa.setText(COSAS[azar.nextInt(COSAS.length)]);
             naviCosa.setAlpha(0f);
             naviCosa.animate().alpha(1f).setDuration(800).start();
