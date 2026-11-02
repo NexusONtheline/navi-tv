@@ -77,6 +77,8 @@ public class NaviSesion extends VoiceInteractionSession {
     private ValueAnimator paseo, vaiven;
 
     private SpeechRecognizer oido;
+    /** NAVI graba ella misma (el control le pasa su micro a la app del asistente). */
+    private final OidoPropio oidoPropio = new OidoPropio();
     private TextToSpeech voz;
     private boolean vozLista;
     /** Lo que había que decir mientras la voz aún se preparaba. */
@@ -252,6 +254,7 @@ public class NaviSesion extends VoiceInteractionSession {
         ui.removeCallbacksAndMessages(null);
         pararAnimaciones();
         if (oido != null) oido.cancel();
+        oidoPropio.cancelar();
         if (voz != null) voz.stop();
         soltarFoco();
         super.onHide();
@@ -394,8 +397,63 @@ public class NaviSesion extends VoiceInteractionSession {
             return;
         }
         carita.setEstado(Carita.Estado.REPOSO);  // se pone rosa cuando ya escucha de verdad
-        // Un oído nuevo cada vez: el control remoto solo conecta su micrófono (el «puente de
-        // audio») cuando el reconocedor se conecta desde cero; si se reutiliza, llega silencio.
+        final int estaVez = vez;
+        oidoPropio.escuchar(new OidoPropio.Oyente() {
+            @Override public void listo() {
+                ui.post(() -> {
+                    if (estaVez != vez || !visible) return;
+                    carita.setEstado(Carita.Estado.ESCUCHANDO);
+                    bip();
+                });
+            }
+            @Override public void termino(byte[] wav) {
+                ui.post(() -> {
+                    if (estaVez == vez && visible) entender(wav);
+                });
+            }
+            @Override public void nada() {
+                ui.post(() -> {
+                    if (estaVez == vez && visible) noTeEscuche();
+                });
+            }
+            @Override public void error(String que) {
+                Log.w(TAG, "oído propio: " + que + " → uso el de Google");
+                ui.post(() -> {
+                    if (estaVez == vez && visible) escucharConGoogle();
+                });
+            }
+        });
+    }
+
+    /** Gemini escucha el audio y luego NAVI piensa la respuesta. */
+    private void entender(byte[] wav) {
+        pensando = true;
+        carita.setEstado(Carita.Estado.PENSANDO);
+        final int estaVez = vez;
+        final long inicio = SystemClock.elapsedRealtime();
+        hilo.execute(() -> {
+            String texto;
+            String fallo = null;
+            try {
+                texto = Cerebro.de(getContext()).transcribir(wav);
+            } catch (Cerebro.Fallo f) {
+                texto = "";
+                fallo = f.getMessage();
+            }
+            Log.i(TAG, "oí: «" + texto + "» (" + (SystemClock.elapsedRealtime() - inicio) + " ms)");
+            final String t = texto, f = fallo;
+            ui.post(() -> {
+                if (estaVez != vez) return;
+                pensando = false;
+                if (f != null) decirYIrse(f);
+                else if (t.isEmpty()) noTeEscuche();
+                else pensar(t);
+            });
+        });
+    }
+
+    /** Plan B: el reconocedor de Google TV (oído nuevo cada vez). */
+    private void escucharConGoogle() {
         if (oido != null) oido.destroy();
         oido = crearOido();
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
@@ -448,7 +506,7 @@ public class NaviSesion extends VoiceInteractionSession {
                         if (reintentos++ < 2) {
                             if (oido != null) oido.destroy();
                             oido = null;
-                            ui.postDelayed(NaviSesion.this::escuchar, 120);
+                            ui.postDelayed(NaviSesion.this::escucharConGoogle, 120);
                         } else {
                             noTeEscuche();
                         }

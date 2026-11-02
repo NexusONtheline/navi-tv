@@ -330,6 +330,48 @@ public final class Cerebro {
         }
     }
 
+    /**
+     * Gemini escucha el audio que grabó NAVI y devuelve lo que dijo la persona.
+     * Vacío si no se entendió nada. Lanza Fallo si no hay conexión.
+     */
+    public String transcribir(byte[] wav) throws Fallo {
+        Conf conf = Conf.cargar(ctx);
+        if (conf.geminiKey.isEmpty()) throw new Fallo("Me falta la clave de Gemini. Ponla en la app NAVI, porfa.");
+        try {
+            JSONArray partes = new JSONArray()
+                    .put(new JSONObject().put("inlineData", new JSONObject().put("mimeType", "audio/wav")
+                            .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))))
+                    .put(new JSONObject().put("text", "Transcribe literalmente lo que dice la persona en este "
+                            + "audio (en español). Responde solo con la transcripción, sin comillas ni comentarios. "
+                            + "Si es silencio, ruido o no se entiende, responde exactamente: (nada)"));
+            JSONObject cuerpo = new JSONObject().put("contents",
+                    new JSONArray().put(new JSONObject().put("role", "user").put("parts", partes)));
+            JSONObject r = null;
+            for (String modelo : new String[]{conf.modelo, conf.modeloReserva}) {
+                if (modelo.isEmpty()) continue;
+                try {
+                    r = post(API + modelo + ":generateContent", conf.geminiKey, cuerpo.toString());
+                    break;
+                } catch (Saturado s) {
+                    Log.w(TAG, modelo + " saturado al transcribir");
+                }
+            }
+            if (r == null) throw new Fallo("Gemini está saturado. Prueba en un minuto.");
+            JSONArray p = r.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts");
+            StringBuilder t = new StringBuilder();
+            for (int i = 0; i < p.length(); i++) {
+                if (!p.getJSONObject(i).optBoolean("thought")) t.append(p.getJSONObject(i).optString("text"));
+            }
+            String dicho = limpiar(t.toString()).trim();
+            return dicho.equalsIgnoreCase("(nada)") ? "" : dicho;
+        } catch (Fallo f) {
+            throw f;
+        } catch (Exception e) {
+            Log.w(TAG, "transcribir", e);
+            throw new Fallo("Uy, no logro conectarme a internet ahora mismo.");
+        }
+    }
+
     /** Para que, si luego le habla con el micro, NAVI sepa lo que acaba de decir sola. */
     private synchronized void recordarComentario(String frase, boolean saludo) {
         try {
